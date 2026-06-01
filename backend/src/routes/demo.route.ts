@@ -57,6 +57,14 @@ demoRoute.post("/import-neo4j", async (req, res, next) => {
   }
 });
 
+demoRoute.post("/warmup", async (_req, res, next) => {
+  try {
+    res.json(await demoService.warmup());
+  } catch (error) {
+    next(error);
+  }
+});
+
 demoRoute.post("/sample-query", async (_req, res, next) => {
   try {
     res.json(await demoService.sampleQuery());

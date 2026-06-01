@@ -110,6 +110,14 @@ const prepareSteps = [
     button: "Import Neo4j",
     theory: "Loads graph data into 4 Neo4j shards so each shard can answer local Cypher traversals.",
     output: "RANDOM and METIS graph modes available inside Neo4j shards."
+  },
+  {
+    name: "Warm Up Query Engine",
+    icon: Activity,
+    action: "/api/demo/warmup",
+    button: "Warm Up",
+    theory: "Runs small probe queries to open Bolt connections, compile Cypher plans, and load hot index/cache pages.",
+    output: "First real demo query becomes more stable and benchmark numbers are less affected by cold start."
   }
 ];
 
@@ -249,7 +257,7 @@ export default function OnePageDemo() {
           <div>
             <span className="section-kicker">1. Prepare Data</span>
             <h2>Run each setup step in order</h2>
-            <p>These steps build the dataset, partition it, create the pruning directory, and load the databases. Run them top to bottom.</p>
+            <p>These steps build the dataset, partition it, create the pruning directory, load the databases, and warm up the query engine. Run them top to bottom.</p>
           </div>
           <button className="secondary" onClick={() => setShowLogs((value) => !value)}>{showLogs ? "Hide Logs" : "Show Logs"}</button>
         </div>

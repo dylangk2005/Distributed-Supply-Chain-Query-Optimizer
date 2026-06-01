@@ -1,10 +1,13 @@
 import { pool } from "../config/postgres";
 import { QueryService } from "./query.service";
+import { WarmupService } from "./warmup.service";
 
 export class BenchmarkService {
   private queryService = new QueryService();
+  private warmupService = new WarmupService();
 
   async run() {
+    await this.warmupService.run();
     const materials = ["Steel", "Lithium", "Palladium"];
     const combos = [
       { partitionMode: "RANDOM", queryMode: "NAIVE" },
