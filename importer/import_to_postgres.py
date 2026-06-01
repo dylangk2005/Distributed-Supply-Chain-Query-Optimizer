@@ -15,6 +15,9 @@ def main() -> None:
 
     with psycopg2.connect(**postgres_config()) as conn:
         with conn.cursor() as cur:
+            cur.execute("ALTER TABLE topology_metrics ADD COLUMN IF NOT EXISTS average_visited_shard_count_by_material NUMERIC(8, 4)")
+            cur.execute("ALTER TABLE topology_metrics ADD COLUMN IF NOT EXISTS cluster_density_by_shard JSONB")
+
             factory_rows = [
                 (
                     doc["factoryId"],
@@ -67,17 +70,20 @@ def main() -> None:
                 cur.execute("""
                     INSERT INTO topology_metrics
                     (partition_mode, projection_nodes, projection_edges, cross_shard_edges,
-                     edge_cut_ratio, material_replication, node_count_by_shard,
-                     edge_count_by_shard, expected_visited_shard_count_by_material)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     edge_cut_ratio, material_replication, average_visited_shard_count_by_material,
+                     node_count_by_shard, edge_count_by_shard, cluster_density_by_shard,
+                     expected_visited_shard_count_by_material)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (partition_mode) DO UPDATE SET
                         projection_nodes = EXCLUDED.projection_nodes,
                         projection_edges = EXCLUDED.projection_edges,
                         cross_shard_edges = EXCLUDED.cross_shard_edges,
                         edge_cut_ratio = EXCLUDED.edge_cut_ratio,
                         material_replication = EXCLUDED.material_replication,
+                        average_visited_shard_count_by_material = EXCLUDED.average_visited_shard_count_by_material,
                         node_count_by_shard = EXCLUDED.node_count_by_shard,
                         edge_count_by_shard = EXCLUDED.edge_count_by_shard,
+                        cluster_density_by_shard = EXCLUDED.cluster_density_by_shard,
                         expected_visited_shard_count_by_material = EXCLUDED.expected_visited_shard_count_by_material
                 """, (
                     metrics["partitionMode"],
@@ -86,8 +92,10 @@ def main() -> None:
                     metrics["crossShardEdges"],
                     metrics["edgeCutRatio"],
                     metrics["materialReplication"],
+                    metrics["averageVisitedShardCountByMaterial"],
                     Json(metrics["nodeCountByShard"]),
                     Json(metrics["edgeCountByShard"]),
+                    Json(metrics["clusterDensityByShard"]),
                     Json(metrics["expectedVisitedShardCountByMaterial"]),
                 ))
     print(json.dumps({"factories": len(documents), "directoryRows": len(random_directory) + len(metis_directory)}, indent=2))
@@ -95,4 +103,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

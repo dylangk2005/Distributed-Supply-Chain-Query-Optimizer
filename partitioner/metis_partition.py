@@ -82,7 +82,7 @@ def main() -> None:
             eweights.append(weight)
         xadj.append(len(adjncy))
 
-    edgecuts, parts = pymetis.part_graph(3, xadj=xadj, adjncy=adjncy, eweights=eweights)
+    edgecuts, parts = pymetis.part_graph(4, xadj=xadj, adjncy=adjncy, eweights=eweights)
     factory_to_shard = {}
     for idx, part_id in enumerate(parts):
         node_id = reverse[idx]
@@ -91,7 +91,7 @@ def main() -> None:
 
     # Isolated factories are unlikely, but assign them deterministically if projection data is missing.
     for ordinal, factory_id in enumerate(sorted(subgraphs)):
-        factory_to_shard.setdefault(factory_id, ordinal % 3)
+        factory_to_shard.setdefault(factory_id, ordinal % 4)
 
     refine_rare_material_outliers(nodes, edges, factory_to_shard)
 

@@ -11,12 +11,13 @@ export class TopologyService {
         crossShardEdges: row.cross_shard_edges,
         edgeCutRatio: Number(row.edge_cut_ratio),
         materialReplication: Number(row.material_replication),
+        averageVisitedShardCountByMaterial: Number(row.average_visited_shard_count_by_material ?? 0),
         nodeCountByShard: row.node_count_by_shard,
         edgeCountByShard: row.edge_count_by_shard,
+        clusterDensityByShard: row.cluster_density_by_shard,
         expectedVisitedShardCountByMaterial: row.expected_visited_shard_count_by_material
       };
     }
     return payload;
   }
 }
-

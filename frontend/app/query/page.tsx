@@ -6,7 +6,7 @@ import { apiPost } from "../api";
 
 type QueryResponse = {
   queryId: string;
-  affectedFactories: Array<{ factoryId: string; factoryName: string; region: string; riskScore: number }>;
+  affectedFactories: Array<{ factoryId: string; factoryName: string; region: string; riskScore: number; documentProductCount?: number }>;
   executionPlan: {
     steps: string[];
     visitedShards: string[];
@@ -28,7 +28,7 @@ const scenarios = [
   { label: "Best pruning", materialName: "Palladium", partitionMode: "METIS", queryMode: "OPTIMIZED" }
 ];
 
-const allShards = ["shard_1", "shard_2", "shard_3"];
+const allShards = ["shard_1", "shard_2", "shard_3", "shard_4"];
 
 export default function QueryPage() {
   const [materialName, setMaterialName] = useState("Lithium");
@@ -123,11 +123,19 @@ export default function QueryPage() {
                 return <div className={`shard-box ${status}`} key={shard}><strong>{shard}</strong><p>{status || "idle"}</p></div>;
               })}
             </div>
+            <div className="execution-flow">
+              {result.executionPlan.steps.map((step) => <span className="flow-step" key={step}>{step}</span>)}
+            </div>
+            <div className="bfs-grid">
+              {result.executionPlan.bfsLevels.map((level) => (
+                <div className="bfs-card" key={level.nodeType}><strong>{level.nodeType}</strong><span>{level.count}</span></div>
+              ))}
+            </div>
           </section>
           <section className="panel" style={{ marginTop: 16 }}>
             <h2>Affected Factories</h2>
             <table>
-              <thead><tr><th>Factory</th><th>Name</th><th>Region</th><th>Risk</th></tr></thead>
+              <thead><tr><th>Factory</th><th>Name</th><th>Region</th><th>Risk</th><th>Doc Products</th></tr></thead>
               <tbody>
                 {result.affectedFactories.slice(0, 50).map((factory) => (
                   <tr key={factory.factoryId}>
@@ -135,6 +143,7 @@ export default function QueryPage() {
                     <td>{factory.factoryName}</td>
                     <td>{factory.region}</td>
                     <td>{factory.riskScore}</td>
+                    <td>{factory.documentProductCount ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>

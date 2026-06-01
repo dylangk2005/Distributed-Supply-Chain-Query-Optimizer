@@ -12,5 +12,6 @@ export interface AffectedFactory {
   factoryName: string;
   region: string;
   riskScore?: number;
+  documentProductCount?: number;
 }
 

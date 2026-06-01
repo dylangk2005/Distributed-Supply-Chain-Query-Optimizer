@@ -8,7 +8,7 @@ def main() -> None:
     nodes, edges, _ = load_graph()
     subgraphs = factory_subgraphs(nodes, edges)
     rng = random.Random(134)
-    factory_to_shard = {factory_id: rng.randint(0, 2) for factory_id in sorted(subgraphs)}
+    factory_to_shard = {factory_id: rng.randint(0, 3) for factory_id in sorted(subgraphs)}
     payload = build_partition_payload(factory_to_shard, subgraphs)
     payload["partitionMode"] = "RANDOM"
     payload["summary"] = summarize(payload, edges)

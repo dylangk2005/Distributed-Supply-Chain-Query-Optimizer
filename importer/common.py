@@ -32,6 +32,7 @@ def shard_uris() -> dict[str, str]:
         "shard_1": "bolt://localhost:7681",
         "shard_2": "bolt://localhost:7682",
         "shard_3": "bolt://localhost:7683",
+        "shard_4": "bolt://localhost:7684",
     }
     return {
         shard: os.getenv(f"NEO4J_SHARD_{shard.split('_')[1]}_URI", uri)

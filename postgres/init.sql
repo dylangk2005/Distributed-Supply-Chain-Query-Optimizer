@@ -45,9 +45,10 @@ CREATE TABLE IF NOT EXISTS topology_metrics (
     cross_shard_edges INT NOT NULL,
     edge_cut_ratio NUMERIC(8, 4) NOT NULL,
     material_replication NUMERIC(8, 4),
+    average_visited_shard_count_by_material NUMERIC(8, 4),
     node_count_by_shard JSONB,
     edge_count_by_shard JSONB,
+    cluster_density_by_shard JSONB,
     expected_visited_shard_count_by_material JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-

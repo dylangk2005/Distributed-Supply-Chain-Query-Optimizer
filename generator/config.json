@@ -1,16 +1,16 @@
 {
-  "factoryCount": 360,
+  "factoryCount": 480,
   "regionDistribution": {
-    "Hanoi": 72,
-    "Ho Chi Minh": 90,
-    "Da Nang": 65,
-    "Hai Phong": 61,
-    "Can Tho": 72
+    "Hanoi": 96,
+    "Ho Chi Minh": 120,
+    "Da Nang": 86,
+    "Hai Phong": 82,
+    "Can Tho": 96
   },
   "productPerFactory": { "min": 2, "max": 3 },
   "partPerProduct": { "min": 2, "max": 4 },
   "componentPerPart": { "min": 2, "max": 3 },
   "rawMaterialPerComponent": { "min": 1, "max": 2 },
-  "rawMaterialCount": 30,
+  "rawMaterialCount": 32,
   "randomSeed": 134
 }

@@ -18,7 +18,13 @@ export class ExecutionPlanService {
       partitionMode: input.partitionMode,
       queryMode: input.queryMode,
       materialName: input.materialName,
-      steps: ["MaterialDirectoryLookup", "ShardPruning", "DistributedBfsTraversal", "RelationalJoin", "DocumentJoin"],
+      steps: [
+        "Coordinator: material_directory lookup",
+        "Coordinator: shard pruning",
+        "Graph: distributed BFS traversal in visited Neo4j shards",
+        "Relational: join factory_metadata in PostgreSQL",
+        "Document: lookup supply_chain_documents JSON"
+      ],
       visitedShards: input.visitedShards,
       prunedShards: input.prunedShards,
       bfsLevels: names.map((nodeType, level) => ({
@@ -60,4 +66,3 @@ export class ExecutionPlanService {
     );
   }
 }
-

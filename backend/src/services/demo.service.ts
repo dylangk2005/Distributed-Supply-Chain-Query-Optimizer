@@ -9,11 +9,11 @@ const MAX_LOGS = 240;
 const PYTHON = process.platform === "win32" ? "python" : "python3";
 
 const initialSteps: DemoStep[] = [
-  { name: "Generate Dataset", status: "pending", summary: "Create 360 factories and 5-level supply chains." },
+  { name: "Generate Dataset", status: "pending", summary: "Create 480 factories and 5-level supply chains." },
   { name: "Partition Graph", status: "pending", summary: "Build RANDOM and METIS factory-subgraph partitions." },
   { name: "Build Material Directory", status: "pending", summary: "Map materials to shards for pruning." },
   { name: "Import PostgreSQL", status: "pending", summary: "Load metadata, documents, material directory, and topology metrics." },
-  { name: "Import Neo4j", status: "pending", summary: "Load RANDOM and METIS graph data into 3 Neo4j shards." },
+  { name: "Import Neo4j", status: "pending", summary: "Load RANDOM and METIS graph data into 4 Neo4j shards." },
   { name: "Run Demo Query", status: "pending", summary: "Run Palladium / METIS / OPTIMIZED." },
   { name: "Review Benchmark", status: "pending", summary: "Benchmark is ready after setup." },
   { name: "Review Topology", status: "pending", summary: "Topology metrics are ready after setup." }
@@ -101,7 +101,7 @@ class DemoService {
   }
 
   async importNeo4jStep(mode: "RANDOM" | "METIS" | "ALL") {
-    this.setStep("Import Neo4j", "running", `Importing ${mode === "ALL" ? "RANDOM + METIS" : mode} graph into 3 Neo4j shards.`);
+    this.setStep("Import Neo4j", "running", `Importing ${mode === "ALL" ? "RANDOM + METIS" : mode} graph into 4 Neo4j shards.`);
     await this.runCommand(PYTHON, ["importer/import_to_neo4j.py"], { PARTITION_MODE: mode });
     this.state.activePartitionMode = mode === "ALL" ? "BOTH" : mode;
     this.setStep("Import Neo4j", "done", `${mode === "ALL" ? "RANDOM + METIS are" : `${mode} is`} active in Neo4j.`);
@@ -149,7 +149,7 @@ class DemoService {
   }
 
   private async generateDatasetStep() {
-    this.setStep("Generate Dataset", "running", "Generating 360 factories.");
+    this.setStep("Generate Dataset", "running", "Generating 480 factories.");
     await this.runCommand(PYTHON, ["generator/generate_dataset.py"]);
     const docsPath = path.join(ROOT, "generator", "output", "supply_chain_documents.json");
     const factoryCount = fs.existsSync(docsPath) ? JSON.parse(fs.readFileSync(docsPath, "utf-8")).length : 0;

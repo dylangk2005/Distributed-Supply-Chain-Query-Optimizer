@@ -9,12 +9,16 @@ def metrics_for(mode: str, partition: dict, projection_edges: list[tuple[str, st
     factory_map = partition["factoryPartitionMap"]
     cross = 0
     edge_count_by_shard = defaultdict(int)
+    factory_count_by_shard = defaultdict(set)
+    material_count_by_shard = defaultdict(set)
     for factory_id, material_id in projection_edges:
         factory_shard = factory_map[factory_id]
         material_shards = material_replicas.get(material_id, [])
         if len(material_shards) > 1:
             cross += 1
         edge_count_by_shard[factory_shard] += 1
+        factory_count_by_shard[factory_shard].add(factory_id)
+        material_count_by_shard[factory_shard].add(material_id)
 
     material_replication = sum(len(value) for value in material_replicas.values()) / max(len(material_replicas), 1)
     node_count_by_shard = {shard: 0 for shard in SHARDS}
@@ -24,6 +28,13 @@ def metrics_for(mode: str, partition: dict, projection_edges: list[tuple[str, st
         for shard in shards:
             node_count_by_shard[shard] += 1
 
+    cluster_density_by_shard = {}
+    for shard in SHARDS:
+        possible_edges = len(factory_count_by_shard[shard]) * len(material_count_by_shard[shard])
+        cluster_density_by_shard[shard] = round(edge_count_by_shard[shard] / max(possible_edges, 1), 4)
+
+    visited_counts = {material_id: len(shards) for material_id, shards in sorted(material_replicas.items())}
+
     return {
         "partitionMode": mode,
         "projectionNodes": len(set([node_id for edge in projection_edges for node_id in edge])),
@@ -31,11 +42,11 @@ def metrics_for(mode: str, partition: dict, projection_edges: list[tuple[str, st
         "crossShardEdges": cross,
         "edgeCutRatio": round(cross / max(len(projection_edges), 1), 4),
         "materialReplication": round(material_replication, 4),
+        "averageVisitedShardCountByMaterial": round(sum(visited_counts.values()) / max(len(visited_counts), 1), 4),
         "nodeCountByShard": node_count_by_shard,
         "edgeCountByShard": {shard: edge_count_by_shard[shard] for shard in SHARDS},
-        "expectedVisitedShardCountByMaterial": {
-            material_id: len(shards) for material_id, shards in sorted(material_replicas.items())
-        },
+        "clusterDensityByShard": cluster_density_by_shard,
+        "expectedVisitedShardCountByMaterial": visited_counts,
     }
 
 

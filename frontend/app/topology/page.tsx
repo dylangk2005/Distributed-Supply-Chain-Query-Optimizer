@@ -6,7 +6,9 @@ type Metrics = {
   crossShardEdges: number;
   edgeCutRatio: number;
   materialReplication: number;
+  averageVisitedShardCountByMaterial: number;
   nodeCountByShard: Record<string, number>;
+  clusterDensityByShard: Record<string, number>;
 };
 
 export default async function TopologyPage() {
@@ -39,6 +41,8 @@ export default async function TopologyPage() {
             <p>{metrics.edgeCutRatio}</p>
             <p>Material replication</p>
             <div className="metric">{metrics.materialReplication}</div>
+            <p>Avg visited shards / material</p>
+            <div className="metric">{metrics.averageVisitedShardCountByMaterial}</div>
           </section>
         ))}
       </div>
@@ -54,6 +58,19 @@ export default async function TopologyPage() {
               <div className="card" key={`${mode}-${shard}`}>
                 <strong>{mode.toUpperCase()} · {shard}</strong>
                 <div className="metric">{count}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+      <section className="panel" style={{ marginTop: 16 }}>
+        <h2>Cluster Density</h2>
+        <div className="grid">
+          {modes.flatMap(([mode, metrics]) =>
+            Object.entries(metrics.clusterDensityByShard ?? {}).map(([shard, density]) => (
+              <div className="card" key={`${mode}-${shard}-density`}>
+                <strong>{mode.toUpperCase()} · {shard}</strong>
+                <div className="metric">{density}</div>
               </div>
             ))
           )}

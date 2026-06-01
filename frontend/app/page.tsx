@@ -14,8 +14,8 @@ type DemoState = {
   lastError?: string;
 };
 type QueryResponse = {
-  affectedFactories: Array<{ factoryId: string; factoryName: string; region: string; riskScore: number }>;
-  executionPlan: { visitedShards: string[]; prunedShards: string[]; bfsLevels: Array<{ nodeType: string; count: number }> };
+  affectedFactories: Array<{ factoryId: string; factoryName: string; region: string; riskScore: number; documentProductCount?: number }>;
+  executionPlan: { steps: string[]; visitedShards: string[]; prunedShards: string[]; bfsLevels: Array<{ level?: number; nodeType: string; count: number }> };
   metrics: { executionTimeMs: number; estimatedDistributedCostMs: number; visitedShardCount: number; prunedShardCount: number; affectedFactoryCount: number };
 };
 type Log = {
@@ -34,7 +34,9 @@ type Metrics = {
   projectionEdges: number;
   edgeCutRatio: number;
   materialReplication: number;
+  averageVisitedShardCountByMaterial: number;
   nodeCountByShard: Record<string, number>;
+  clusterDensityByShard: Record<string, number>;
 };
 type BenchmarkResponse = {
   results: Array<{
@@ -47,7 +49,7 @@ type BenchmarkResponse = {
   }>;
 };
 
-const allShards = ["shard_1", "shard_2", "shard_3"];
+const allShards = ["shard_1", "shard_2", "shard_3", "shard_4"];
 const scenarios = [
   { label: "Broad Impact", materialName: "Steel", partitionMode: "RANDOM", queryMode: "NAIVE", note: "Shows the full fan-out path." },
   { label: "Medium Impact", materialName: "Lithium", partitionMode: "METIS", queryMode: "OPTIMIZED", note: "Usually visits fewer shards." },
@@ -59,7 +61,7 @@ const prepareSteps = [
     icon: Boxes,
     action: "/api/demo/generate",
     button: "Generate Dataset",
-    theory: "Creates 360 factories and a local 5-level supply chain tree for each factory.",
+    theory: "Creates 480 factories and a local 5-level supply chain tree for each factory.",
     output: "Factory metadata, graph nodes, graph relationships, and document JSON files."
   },
   {
@@ -67,7 +69,7 @@ const prepareSteps = [
     icon: GitBranch,
     action: "/api/demo/partition",
     button: "Partition Graph",
-    theory: "Assigns every full factory-subgraph to one of 3 shards using RANDOM and METIS.",
+    theory: "Assigns every full factory-subgraph to one of 4 shards using RANDOM and METIS. Region stays metadata only.",
     output: "Factory partition maps, node assignment maps, and material replica maps."
   },
   {
@@ -91,7 +93,7 @@ const prepareSteps = [
     icon: Layers3,
     action: "/api/demo/import-neo4j",
     button: "Import Neo4j",
-    theory: "Loads graph data into 3 Neo4j shards so each shard can answer local Cypher traversals.",
+    theory: "Loads graph data into 4 Neo4j shards so each shard can answer local Cypher traversals.",
     output: "RANDOM and METIS graph modes available inside Neo4j shards."
   }
 ];
@@ -189,7 +191,7 @@ export default function OnePageDemo() {
     <>
       <section className="hero app-hero">
         <div className="hero-main">
-          <span className="eyebrow">3-shard distributed graph demo</span>
+          <span className="eyebrow">4-shard distributed graph demo</span>
           <h1>Supply Chain Map</h1>
           <p>Prepare data step by step, run shard-aware shortage queries, then compare RANDOM and METIS with visual metrics.</p>
         </div>
@@ -297,11 +299,22 @@ export default function OnePageDemo() {
                 return <div className={`shard-box ${status}`} key={shard}><strong>{shard}</strong><p>{status || "idle"}</p></div>;
               })}
             </div>
+            <div className="execution-flow">
+              {queryResult.executionPlan.steps.map((step) => <span className="flow-step" key={step}>{step}</span>)}
+            </div>
+            <div className="bfs-grid">
+              {queryResult.executionPlan.bfsLevels.map((level) => (
+                <div className="bfs-card" key={level.nodeType}>
+                  <strong>{level.nodeType}</strong>
+                  <span>{level.count}</span>
+                </div>
+              ))}
+            </div>
             <table style={{ marginTop: 16 }}>
-              <thead><tr><th>Factory</th><th>Name</th><th>Region</th><th>Risk</th></tr></thead>
+              <thead><tr><th>Factory</th><th>Name</th><th>Region</th><th>Risk</th><th>Doc Products</th></tr></thead>
               <tbody>
                 {queryResult.affectedFactories.slice(0, 10).map((factory) => (
-                  <tr key={factory.factoryId}><td>{factory.factoryId}</td><td>{factory.factoryName}</td><td>{factory.region}</td><td>{factory.riskScore}</td></tr>
+                  <tr key={factory.factoryId}><td>{factory.factoryId}</td><td>{factory.factoryName}</td><td>{factory.region}</td><td>{factory.riskScore}</td><td>{factory.documentProductCount ?? "-"}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -321,12 +334,14 @@ export default function OnePageDemo() {
         <div className="compare-grid">
           <CompareBar title="Material Replication" leftLabel="RANDOM" leftValue={random?.materialReplication ?? 0} rightLabel="METIS" rightValue={metis?.materialReplication ?? 0} suffix="" />
           <CompareBar title="Edge-Cut Ratio" leftLabel="RANDOM" leftValue={random?.edgeCutRatio ?? 0} rightLabel="METIS" rightValue={metis?.edgeCutRatio ?? 0} suffix="" />
+          <CompareBar title="Avg Visited Shards / Material" leftLabel="RANDOM" leftValue={random?.averageVisitedShardCountByMaterial ?? 0} rightLabel="METIS" rightValue={metis?.averageVisitedShardCountByMaterial ?? 0} suffix="" />
+          <CompareBar title="Avg Cluster Density" leftLabel="RANDOM" leftValue={averageDensity(random)} rightLabel="METIS" rightValue={averageDensity(metis)} suffix="" />
           <CompareBar title="Palladium Distributed Cost" leftLabel="RANDOM" leftValue={costFor(latestBenchmark, "Palladium", "random")} rightLabel="METIS" rightValue={costFor(latestBenchmark, "Palladium", "metis")} suffix="ms" />
           <CompareBar title="Palladium Visited Shards" leftLabel="RANDOM" leftValue={visitedFor(latestBenchmark, "Palladium", "random")} rightLabel="METIS" rightValue={visitedFor(latestBenchmark, "Palladium", "metis")} suffix="" />
         </div>
         <div className="takeaway">
           <Activity size={18} />
-          <p><b>Demo takeaway:</b> METIS groups factories with similar material dependencies, so rare materials such as Palladium usually hit fewer shards. Optimized mode then uses the material directory to avoid unnecessary shard queries.</p>
+          <p><b>Demo takeaway:</b> METIS groups factories with similar material dependencies, so rare materials such as Palladium usually hit fewer shards. Region is not used for partitioning; optimized mode uses the material directory to avoid unnecessary shard queries.</p>
         </div>
         <table style={{ marginTop: 16 }}>
           <thead><tr><th>Material</th><th>Partition</th><th>Mode</th><th>Distributed Cost</th><th>Runtime</th><th>Visited</th><th>Pruned</th><th>Factories</th></tr></thead>
@@ -375,4 +390,10 @@ function costFor(rows: Array<{ materialName: string; randomEstimatedCostMs?: num
 function visitedFor(rows: Array<{ materialName: string; randomVisitedShards?: number; metisVisitedShards?: number }>, material: string, mode: "random" | "metis") {
   const row = rows.find((item) => item.materialName === material);
   return mode === "random" ? row?.randomVisitedShards ?? 0 : row?.metisVisitedShards ?? 0;
+}
+
+function averageDensity(metrics?: Metrics) {
+  const values = Object.values(metrics?.clusterDensityByShard ?? {});
+  if (!values.length) return 0;
+  return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(4));
 }
