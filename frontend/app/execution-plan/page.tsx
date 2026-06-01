@@ -9,6 +9,11 @@ type Plan = {
   visitedShards: string[];
   prunedShards: string[];
   bfsLevels: Array<{ level: number; nodeType: string; count: number }>;
+  cypherQuery?: string;
+  cypherParams?: Record<string, string>;
+  directoryQuery?: string;
+  directoryParams?: Record<string, string>;
+  reason?: string;
 };
 
 export default function ExecutionPlanPage() {
@@ -36,6 +41,7 @@ export default function ExecutionPlanPage() {
           <p>{plan.queryId} · {plan.materialName}</p>
         </div>
       </div>
+      {plan.reason && <section className="takeaway" style={{ marginBottom: 16 }}><p><b>Routing reason:</b> {plan.reason}</p></section>}
       <div className="steps">
         {plan.steps.map((step, index) => (
           <div className="step" key={step}>
@@ -55,7 +61,21 @@ export default function ExecutionPlanPage() {
           ))}
         </div>
       </section>
+      <section className="panel" style={{ marginTop: 16 }}>
+        <h2>Query Text</h2>
+        <div className="query-text-grid">
+          <div>
+            <h3>Cypher traversal query</h3>
+            <pre className="query-code">{plan.cypherQuery ?? "Run a new query to capture Cypher text."}</pre>
+            <p className="query-params">Params: {plan.cypherParams ? JSON.stringify(plan.cypherParams) : "none"}</p>
+          </div>
+          <div>
+            <h3>SQL directory lookup</h3>
+            <pre className="query-code">{plan.directoryQuery ?? "Skipped in NAIVE mode or not captured yet."}</pre>
+            <p className="query-params">Params: {plan.directoryParams ? JSON.stringify(plan.directoryParams) : "none"}</p>
+          </div>
+        </div>
+      </section>
     </>
   );
 }
-

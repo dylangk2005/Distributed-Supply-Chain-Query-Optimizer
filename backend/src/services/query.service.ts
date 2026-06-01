@@ -26,6 +26,14 @@ RETURN count(DISTINCT m) AS RawMaterial,
        count(DISTINCT f) AS Factory
 `;
 
+const DIRECTORY_QUERY = `
+SELECT DISTINCT shard_id
+FROM material_directory
+WHERE partition_mode = $1
+  AND lower(material_name) = lower($2)
+ORDER BY shard_id
+`;
+
 function numberValue(value: unknown): number {
   if (typeof value === "number") return value;
   if (value && typeof value === "object" && "toNumber" in value && typeof value.toNumber === "function") {
@@ -67,6 +75,7 @@ export class QueryService {
     const affectedFactories = await this.enrichment.enrich([...factoryIds]);
     const executionTimeMs = Date.now() - started;
     const estimatedDistributedCostMs = executionTimeMs + route.visitedShards.length * 60;
+    const cypherParams = { materialName: request.materialName, partitionMode: request.partitionMode };
     const executionPlan = this.plans.build({
       queryId,
       partitionMode: request.partitionMode,
@@ -75,6 +84,10 @@ export class QueryService {
       visitedShards: route.visitedShards,
       prunedShards: route.prunedShards,
       bfsCounts,
+      cypherQuery: FACTORY_QUERY.trim(),
+      cypherParams,
+      directoryQuery: request.queryMode === "OPTIMIZED" ? DIRECTORY_QUERY.trim() : undefined,
+      directoryParams: request.queryMode === "OPTIMIZED" ? { partitionMode: request.partitionMode, materialName: request.materialName } : undefined,
       reason: route.reason
     });
     await this.plans.persist({

@@ -8,10 +8,18 @@ type QueryResponse = {
   queryId: string;
   affectedFactories: Array<{ factoryId: string; factoryName: string; region: string; riskScore: number; documentProductCount?: number }>;
   executionPlan: {
+    queryMode: string;
+    partitionMode: string;
+    materialName: string;
     steps: string[];
     visitedShards: string[];
     prunedShards: string[];
     bfsLevels: Array<{ level: number; nodeType: string; count: number }>;
+    cypherQuery: string;
+    cypherParams: Record<string, string>;
+    directoryQuery?: string;
+    directoryParams?: Record<string, string>;
+    reason: string;
   };
   metrics: {
     executionTimeMs: number;
@@ -116,7 +124,9 @@ export default function QueryPage() {
             <div className="card"><div className="metric">{result.metrics.prunedShardCount}</div><p>Pruned shards</p></div>
           </div>
           <section className="panel" style={{ marginTop: 16 }}>
+            <span className="section-kicker">Deliverable: Execution Plan</span>
             <h2>Shard Plan</h2>
+            <p>{result.executionPlan.reason}</p>
             <div className="shard-grid">
               {allShards.map((shard) => {
                 const status = result.executionPlan.visitedShards.includes(shard) ? "visited" : result.executionPlan.prunedShards.includes(shard) ? "pruned" : "";
@@ -130,6 +140,18 @@ export default function QueryPage() {
               {result.executionPlan.bfsLevels.map((level) => (
                 <div className="bfs-card" key={level.nodeType}><strong>{level.nodeType}</strong><span>{level.count}</span></div>
               ))}
+            </div>
+            <div className="query-text-grid" style={{ marginTop: 16 }}>
+              <div>
+                <h3>Cypher traversal query</h3>
+                <pre className="query-code">{result.executionPlan.cypherQuery}</pre>
+                <p className="query-params">Params: {JSON.stringify(result.executionPlan.cypherParams)}</p>
+              </div>
+              <div>
+                <h3>SQL directory lookup</h3>
+                <pre className="query-code">{result.executionPlan.directoryQuery ?? "Skipped in NAIVE mode. NAIVE broadcasts the query to every shard."}</pre>
+                <p className="query-params">Params: {result.executionPlan.directoryParams ? JSON.stringify(result.executionPlan.directoryParams) : "none"}</p>
+              </div>
             </div>
           </section>
           <section className="panel" style={{ marginTop: 16 }}>

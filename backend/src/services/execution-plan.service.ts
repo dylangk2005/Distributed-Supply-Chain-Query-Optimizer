@@ -10,6 +10,10 @@ export class ExecutionPlanService {
     visitedShards: string[];
     prunedShards: string[];
     bfsCounts: Record<string, number>;
+    cypherQuery: string;
+    cypherParams: Record<string, string>;
+    directoryQuery?: string;
+    directoryParams?: Record<string, string>;
     reason: string;
   }): ExecutionPlan {
     const names = ["RawMaterial", "Component", "Part", "Product", "Factory"];
@@ -32,6 +36,10 @@ export class ExecutionPlanService {
         nodeType,
         count: input.bfsCounts[nodeType] ?? 0
       })),
+      cypherQuery: input.cypherQuery,
+      cypherParams: input.cypherParams,
+      directoryQuery: input.directoryQuery,
+      directoryParams: input.directoryParams,
       reason: input.reason
     };
   }

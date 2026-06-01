@@ -350,6 +350,71 @@ button.scenario-button small {
   color: var(--green);
 }
 
+.insight-grid,
+.plan-summary-grid,
+.query-text-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.insight-grid {
+  margin-bottom: 18px;
+}
+
+.insight-card,
+.deliverable-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 14px;
+}
+
+.insight-card p,
+.deliverable-panel p,
+.topology-heading p {
+  margin: 6px 0 0;
+}
+
+.deliverable-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.deliverable-panel h3,
+.deliverable-panel h4,
+.topology-heading h3 {
+  margin: 4px 0 0;
+}
+
+.topology-heading {
+  margin: 8px 0 14px;
+}
+
+.query-code {
+  min-height: 110px;
+  max-height: 220px;
+  overflow: auto;
+  background: #101828;
+  color: #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.query-params {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
+
+.benchmark-table td:nth-child(2),
+.benchmark-table td:nth-child(3) {
+  font-weight: 700;
+}
+
 .error-state {
   border-color: #f3b6b0;
   background: #fff7f6;

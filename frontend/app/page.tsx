@@ -15,7 +15,20 @@ type DemoState = {
 };
 type QueryResponse = {
   affectedFactories: Array<{ factoryId: string; factoryName: string; region: string; riskScore: number; documentProductCount?: number }>;
-  executionPlan: { steps: string[]; visitedShards: string[]; prunedShards: string[]; bfsLevels: Array<{ level?: number; nodeType: string; count: number }> };
+  executionPlan: {
+    queryMode: string;
+    partitionMode: string;
+    materialName: string;
+    steps: string[];
+    visitedShards: string[];
+    prunedShards: string[];
+    bfsLevels: Array<{ level?: number; nodeType: string; count: number }>;
+    cypherQuery: string;
+    cypherParams: Record<string, string>;
+    directoryQuery?: string;
+    directoryParams?: Record<string, string>;
+    reason: string;
+  };
   metrics: { executionTimeMs: number; estimatedDistributedCostMs: number; visitedShardCount: number; prunedShardCount: number; affectedFactoryCount: number };
 };
 type Log = {
@@ -41,10 +54,12 @@ type Metrics = {
 type BenchmarkResponse = {
   results: Array<{
     materialName: string;
-    randomEstimatedCostMs: number;
-    metisEstimatedCostMs: number;
-    randomVisitedShards: number;
-    metisVisitedShards: number;
+    partitionMode: string;
+    queryMode: string;
+    executionTimeMs: number;
+    estimatedDistributedCostMs: number;
+    visitedShardCount: number;
+    prunedShardCount: number;
     affectedFactoryCount: number;
   }>;
 };
@@ -61,7 +76,7 @@ const prepareSteps = [
     icon: Boxes,
     action: "/api/demo/generate",
     button: "Generate Dataset",
-    theory: "Creates 480 factories and a local 5-level supply chain tree for each factory.",
+    theory: "Creates 500 factories and a local 5-level supply chain tree for each factory. Region is metadata only.",
     output: "Factory metadata, graph nodes, graph relationships, and document JSON files."
   },
   {
@@ -168,23 +183,26 @@ export default function OnePageDemo() {
   const running = busy || demo?.status === "running";
   const metis = topology.metis;
   const random = topology.random;
-  const latestBenchmark = useMemo(() => {
+  const benchmarkRows = useMemo(() => {
     if (benchmark?.results?.length) return benchmark.results;
-    const byMaterial = new Map<string, { materialName: string; randomEstimatedCostMs?: number; metisEstimatedCostMs?: number; randomVisitedShards?: number; metisVisitedShards?: number; affectedFactoryCount?: number }>();
+    const seen = new Set<string>();
+    const rows = [];
     for (const log of logs) {
-      const row = byMaterial.get(log.materialName) ?? { materialName: log.materialName };
-      if (log.partitionMode === "RANDOM" && log.queryMode === "NAIVE" && row.randomEstimatedCostMs === undefined) {
-        row.randomEstimatedCostMs = log.estimatedDistributedCostMs;
-        row.randomVisitedShards = log.visitedShards.length;
-      }
-      if (log.partitionMode === "METIS" && log.queryMode === "OPTIMIZED" && row.metisEstimatedCostMs === undefined) {
-        row.metisEstimatedCostMs = log.estimatedDistributedCostMs;
-        row.metisVisitedShards = log.visitedShards.length;
-        row.affectedFactoryCount = log.affectedFactoryCount;
-      }
-      byMaterial.set(log.materialName, row);
+      const key = `${log.materialName}-${log.partitionMode}-${log.queryMode}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({
+        materialName: log.materialName,
+        partitionMode: log.partitionMode,
+        queryMode: log.queryMode,
+        executionTimeMs: log.executionTimeMs,
+        estimatedDistributedCostMs: log.estimatedDistributedCostMs,
+        visitedShardCount: log.visitedShards.length,
+        prunedShardCount: log.prunedShards.length,
+        affectedFactoryCount: log.affectedFactoryCount
+      });
     }
-    return Array.from(byMaterial.values()).filter((row) => row.randomEstimatedCostMs && row.metisEstimatedCostMs).slice(0, 3);
+    return rows;
   }, [benchmark, logs]);
 
   return (
@@ -299,17 +317,41 @@ export default function OnePageDemo() {
                 return <div className={`shard-box ${status}`} key={shard}><strong>{shard}</strong><p>{status || "idle"}</p></div>;
               })}
             </div>
-            <div className="execution-flow">
-              {queryResult.executionPlan.steps.map((step) => <span className="flow-step" key={step}>{step}</span>)}
-            </div>
-            <div className="bfs-grid">
-              {queryResult.executionPlan.bfsLevels.map((level) => (
-                <div className="bfs-card" key={level.nodeType}>
-                  <strong>{level.nodeType}</strong>
-                  <span>{level.count}</span>
+            <section className="deliverable-panel">
+              <div>
+                <span className="section-kicker">Deliverable: Execution Plan</span>
+                <h3>Which shards were visited, and why</h3>
+                <p>{queryResult.executionPlan.reason}</p>
+              </div>
+              <div className="plan-summary-grid">
+                <MetricCard label="Query Mode" value={queryResult.executionPlan.queryMode} />
+                <MetricCard label="Visited" value={queryResult.executionPlan.visitedShards.join(", ") || "-"} />
+                <MetricCard label="Pruned" value={queryResult.executionPlan.prunedShards.join(", ") || "none"} />
+              </div>
+              <div className="execution-flow">
+                {queryResult.executionPlan.steps.map((step) => <span className="flow-step" key={step}>{step}</span>)}
+              </div>
+              <div className="bfs-grid">
+                {queryResult.executionPlan.bfsLevels.map((level) => (
+                  <div className="bfs-card" key={level.nodeType}>
+                    <strong>{level.nodeType}</strong>
+                    <span>{level.count}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="query-text-grid">
+                <div>
+                  <h4>Cypher traversal query</h4>
+                  <pre className="query-code">{queryResult.executionPlan.cypherQuery}</pre>
+                  <p className="query-params">Params: {JSON.stringify(queryResult.executionPlan.cypherParams)}</p>
                 </div>
-              ))}
-            </div>
+                <div>
+                  <h4>SQL directory lookup</h4>
+                  <pre className="query-code">{queryResult.executionPlan.directoryQuery ?? "Skipped in NAIVE mode. NAIVE broadcasts the query to every shard."}</pre>
+                  <p className="query-params">Params: {queryResult.executionPlan.directoryParams ? JSON.stringify(queryResult.executionPlan.directoryParams) : "none"}</p>
+                </div>
+              </div>
+            </section>
             <table style={{ marginTop: 16 }}>
               <thead><tr><th>Factory</th><th>Name</th><th>Region</th><th>Risk</th><th>Doc Products</th></tr></thead>
               <tbody>
@@ -327,27 +369,55 @@ export default function OnePageDemo() {
           <div>
             <span className="section-kicker">3. Benchmark & Topology</span>
             <h2>Compare RANDOM and METIS visually</h2>
-            <p>Distributed Cost is the stable demo metric. Actual runtime can move around because local Docker and cache effects are noisy.</p>
+            <p>Benchmark measures query behavior for the same material across modes. Topology measures partition quality before the query runs.</p>
           </div>
           <button className="secondary" onClick={() => runAction(() => apiPost<BenchmarkResponse>("/api/benchmark/run"))} disabled={running}><BarChart3 size={16} />Run Benchmark</button>
+        </div>
+        <div className="insight-grid">
+          <div className="insight-card">
+            <strong>Benchmark</strong>
+            <p>Compares RANDOM and METIS using the same material and all 4 combos: RANDOM+NAIVE, RANDOM+OPTIMIZED, METIS+NAIVE, METIS+OPTIMIZED.</p>
+          </div>
+          <div className="insight-card">
+            <strong>Topology</strong>
+            <p>Explains whether the partition itself is good: lower edge-cut and replication mean dependencies are less scattered across shards.</p>
+          </div>
+          <div className="insight-card">
+            <strong>Fair comparison</strong>
+            <p>NAIVE always broadcasts. The key demo comparison is RANDOM+OPTIMIZED vs METIS+OPTIMIZED for the same raw material.</p>
+          </div>
+        </div>
+        <div className="topology-heading">
+          <span className="section-kicker">Topology Insight: Edge-Cut & Cluster Density</span>
+          <h3>Partition quality before running queries</h3>
+          <p>Edge-cut thấp hơn nghĩa là dependency ít bị phân tán hơn. Cluster density cao hơn nghĩa là shard gom factory-material dependency chặt hơn.</p>
         </div>
         <div className="compare-grid">
           <CompareBar title="Material Replication" leftLabel="RANDOM" leftValue={random?.materialReplication ?? 0} rightLabel="METIS" rightValue={metis?.materialReplication ?? 0} suffix="" />
           <CompareBar title="Edge-Cut Ratio" leftLabel="RANDOM" leftValue={random?.edgeCutRatio ?? 0} rightLabel="METIS" rightValue={metis?.edgeCutRatio ?? 0} suffix="" />
           <CompareBar title="Avg Visited Shards / Material" leftLabel="RANDOM" leftValue={random?.averageVisitedShardCountByMaterial ?? 0} rightLabel="METIS" rightValue={metis?.averageVisitedShardCountByMaterial ?? 0} suffix="" />
           <CompareBar title="Avg Cluster Density" leftLabel="RANDOM" leftValue={averageDensity(random)} rightLabel="METIS" rightValue={averageDensity(metis)} suffix="" />
-          <CompareBar title="Palladium Distributed Cost" leftLabel="RANDOM" leftValue={costFor(latestBenchmark, "Palladium", "random")} rightLabel="METIS" rightValue={costFor(latestBenchmark, "Palladium", "metis")} suffix="ms" />
-          <CompareBar title="Palladium Visited Shards" leftLabel="RANDOM" leftValue={visitedFor(latestBenchmark, "Palladium", "random")} rightLabel="METIS" rightValue={visitedFor(latestBenchmark, "Palladium", "metis")} suffix="" />
+          <CompareBar title="Palladium Optimized Cost" leftLabel="RANDOM" leftValue={benchmarkValue(benchmarkRows, "Palladium", "RANDOM", "OPTIMIZED", "cost")} rightLabel="METIS" rightValue={benchmarkValue(benchmarkRows, "Palladium", "METIS", "OPTIMIZED", "cost")} suffix="ms" />
+          <CompareBar title="Palladium Optimized Visits" leftLabel="RANDOM" leftValue={benchmarkValue(benchmarkRows, "Palladium", "RANDOM", "OPTIMIZED", "visited")} rightLabel="METIS" rightValue={benchmarkValue(benchmarkRows, "Palladium", "METIS", "OPTIMIZED", "visited")} suffix="" />
         </div>
         <div className="takeaway">
           <Activity size={18} />
-          <p><b>Demo takeaway:</b> METIS groups factories with similar material dependencies, so rare materials such as Palladium usually hit fewer shards. Region is not used for partitioning; optimized mode uses the material directory to avoid unnecessary shard queries.</p>
+          <p><b>Demo takeaway:</b> NAIVE luôn query cả 4 shards. RANDOM+OPTIMIZED có thể giống RANDOM+NAIVE nếu material bị replicate ở đủ 4 shards. Điểm chính cần nhìn là RANDOM+OPTIMIZED so với METIS+OPTIMIZED cùng một material.</p>
         </div>
-        <table style={{ marginTop: 16 }}>
+        <table className="benchmark-table" style={{ marginTop: 16 }}>
           <thead><tr><th>Material</th><th>Partition</th><th>Mode</th><th>Distributed Cost</th><th>Runtime</th><th>Visited</th><th>Pruned</th><th>Factories</th></tr></thead>
           <tbody>
-            {logs.slice(0, 8).map((log) => (
-              <tr key={log.queryId}><td>{log.materialName}</td><td>{log.partitionMode}</td><td>{log.queryMode}</td><td>{log.estimatedDistributedCostMs}ms</td><td>{log.executionTimeMs}ms</td><td>{log.visitedShards.length}</td><td>{log.prunedShards.length}</td><td>{log.affectedFactoryCount}</td></tr>
+            {benchmarkRows.slice(0, 12).map((row) => (
+              <tr key={`${row.materialName}-${row.partitionMode}-${row.queryMode}`}>
+                <td>{row.materialName}</td>
+                <td>{row.partitionMode}</td>
+                <td>{row.queryMode}</td>
+                <td>{row.estimatedDistributedCostMs}ms</td>
+                <td>{row.executionTimeMs}ms</td>
+                <td>{row.visitedShardCount}</td>
+                <td>{row.prunedShardCount}</td>
+                <td>{row.affectedFactoryCount}</td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -382,14 +452,16 @@ function BarRow({ label, value, max, suffix, accent = false }: { label: string; 
   );
 }
 
-function costFor(rows: Array<{ materialName: string; randomEstimatedCostMs?: number; metisEstimatedCostMs?: number }>, material: string, mode: "random" | "metis") {
-  const row = rows.find((item) => item.materialName === material);
-  return mode === "random" ? row?.randomEstimatedCostMs ?? 0 : row?.metisEstimatedCostMs ?? 0;
-}
-
-function visitedFor(rows: Array<{ materialName: string; randomVisitedShards?: number; metisVisitedShards?: number }>, material: string, mode: "random" | "metis") {
-  const row = rows.find((item) => item.materialName === material);
-  return mode === "random" ? row?.randomVisitedShards ?? 0 : row?.metisVisitedShards ?? 0;
+function benchmarkValue(
+  rows: BenchmarkResponse["results"],
+  materialName: string,
+  partitionMode: string,
+  queryMode: string,
+  metric: "cost" | "visited"
+) {
+  const row = rows.find((item) => item.materialName === materialName && item.partitionMode === partitionMode && item.queryMode === queryMode);
+  if (!row) return 0;
+  return metric === "cost" ? row.estimatedDistributedCostMs : row.visitedShardCount;
 }
 
 function averageDensity(metrics?: Metrics) {

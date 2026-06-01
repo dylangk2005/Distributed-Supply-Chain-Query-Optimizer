@@ -13,6 +13,9 @@ export interface ExecutionPlan {
   visitedShards: string[];
   prunedShards: string[];
   bfsLevels: BfsLevel[];
+  cypherQuery: string;
+  cypherParams: Record<string, string>;
+  directoryQuery?: string;
+  directoryParams?: Record<string, string>;
   reason: string;
 }
-

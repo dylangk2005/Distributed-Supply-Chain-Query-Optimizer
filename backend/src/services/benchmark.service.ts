@@ -6,20 +6,27 @@ export class BenchmarkService {
 
   async run() {
     const materials = ["Steel", "Lithium", "Palladium"];
+    const combos = [
+      { partitionMode: "RANDOM", queryMode: "NAIVE" },
+      { partitionMode: "RANDOM", queryMode: "OPTIMIZED" },
+      { partitionMode: "METIS", queryMode: "NAIVE" },
+      { partitionMode: "METIS", queryMode: "OPTIMIZED" }
+    ] as const;
     const results = [];
     for (const materialName of materials) {
-      const random = await this.queryService.run({ materialName, partitionMode: "RANDOM", queryMode: "NAIVE" });
-      const metis = await this.queryService.run({ materialName, partitionMode: "METIS", queryMode: "OPTIMIZED" });
-      results.push({
-        materialName,
-        randomNaiveTimeMs: random.metrics.executionTimeMs,
-        metisOptimizedTimeMs: metis.metrics.executionTimeMs,
-        randomEstimatedCostMs: random.metrics.estimatedDistributedCostMs,
-        metisEstimatedCostMs: metis.metrics.estimatedDistributedCostMs,
-        randomVisitedShards: random.metrics.visitedShardCount,
-        metisVisitedShards: metis.metrics.visitedShardCount,
-        affectedFactoryCount: metis.metrics.affectedFactoryCount
-      });
+      for (const combo of combos) {
+        const response = await this.queryService.run({ materialName, ...combo });
+        results.push({
+          materialName,
+          partitionMode: combo.partitionMode,
+          queryMode: combo.queryMode,
+          executionTimeMs: response.metrics.executionTimeMs,
+          estimatedDistributedCostMs: response.metrics.estimatedDistributedCostMs,
+          visitedShardCount: response.metrics.visitedShardCount,
+          prunedShardCount: response.metrics.prunedShardCount,
+          affectedFactoryCount: response.metrics.affectedFactoryCount
+        });
+      }
     }
     return { materials, results };
   }
