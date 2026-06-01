@@ -1,20 +1,27 @@
 import json
 import os
 from collections import defaultdict
+from typing import Iterable
 
 from neo4j import GraphDatabase
 
 from common import GENERATOR_DIR, PARTITIONER_DIR, load_json, shard_uris
 
 
+LABELS = {"Factory", "Product", "Part", "Component", "RawMaterial"}
 REL_TYPES = {"PRODUCES", "CONTAINS", "HAS_COMPONENT", "USES"}
+BATCH_SIZE = 1000
 
 
 def label_for(node: dict) -> str:
     label = node["label"]
-    if label not in {"Factory", "Product", "Part", "Component", "RawMaterial"}:
+    if label not in LABELS:
         raise ValueError(f"Unsupported label: {label}")
     return label
+
+
+def uid(mode: str, node_id: str) -> str:
+    return f"{mode}:{node_id}"
 
 
 def validate_subgraphs(edges: list[dict], partition: dict) -> None:
@@ -40,73 +47,108 @@ def run_cypher_file(session, filename: str) -> None:
             session.run(statement)
 
 
-def create_node(session, node: dict, shard_id: str, partition_mode: str) -> None:
-    label = label_for(node)
-    props = dict(node["properties"])
-    props["partitionMode"] = partition_mode
-    props["shardId"] = shard_id
-    key_by_label = {
-        "Factory": "factoryId",
-        "Product": "productId",
-        "Part": "partId",
-        "Component": "componentId",
-        "RawMaterial": "materialId",
-    }
-    key = key_by_label[label]
-    session.run(
-        f"MERGE (n:{label} {{{key}: $id}}) SET n += $props",
-        id=props[key],
-        props=props,
-    )
+def chunks(items: list[dict], size: int = BATCH_SIZE) -> Iterable[list[dict]]:
+    for index in range(0, len(items), size):
+        yield items[index:index + size]
 
 
-def create_relationship(session, source: dict, target: dict, rel_type: str) -> None:
-    if rel_type not in REL_TYPES:
-        raise ValueError(f"Unsupported relationship type: {rel_type}")
-    key_by_label = {
-        "Factory": "factoryId",
-        "Product": "productId",
-        "Part": "partId",
-        "Component": "componentId",
-        "RawMaterial": "materialId",
-    }
-    source_label = label_for(source)
-    target_label = label_for(target)
-    source_key = key_by_label[source_label]
-    target_key = key_by_label[target_label]
-    session.run(
-        f"""
-        MATCH (a:{source_label} {{{source_key}: $sourceId}})
-        MATCH (b:{target_label} {{{target_key}: $targetId}})
-        MERGE (a)-[:{rel_type}]->(b)
-        """,
-        sourceId=source["properties"][source_key],
-        targetId=target["properties"][target_key],
-    )
+def selected_modes() -> list[str]:
+    mode = os.getenv("PARTITION_MODE", "ALL").upper()
+    if mode == "ALL":
+        return ["RANDOM", "METIS"]
+    if mode in {"RANDOM", "METIS"}:
+        return [mode]
+    raise SystemExit("PARTITION_MODE must be ALL, RANDOM, or METIS")
+
+
+def partition_file(mode: str) -> str:
+    return "random_partition_map.json" if mode == "RANDOM" else "metis_partition_map.json"
+
+
+def build_import_plan(mode: str, nodes_by_id: dict[str, dict], edges: list[dict], partition: dict) -> tuple[dict, dict]:
+    validate_subgraphs(edges, partition)
+    shard_nodes = defaultdict(lambda: defaultdict(dict))
+    shard_edges = defaultdict(lambda: defaultdict(list))
+
+    for node_id, shard_id in partition["nodePartitionMap"].items():
+        node = nodes_by_id[node_id]
+        props = dict(node["properties"])
+        props["uid"] = uid(mode, node_id)
+        props["partitionMode"] = mode
+        props["shardId"] = shard_id
+        shard_nodes[shard_id][label_for(node)][props["uid"]] = {"uid": props["uid"], "props": props}
+
+    for material_id, shards in partition["materialReplicaMap"].items():
+        node = nodes_by_id[material_id]
+        for shard_id in shards:
+            props = dict(node["properties"])
+            props["uid"] = uid(mode, material_id)
+            props["partitionMode"] = mode
+            props["shardId"] = shard_id
+            shard_nodes[shard_id]["RawMaterial"][props["uid"]] = {"uid": props["uid"], "props": props}
+
+    for edge in edges:
+        rel_type = edge["type"]
+        if rel_type not in REL_TYPES:
+            raise ValueError(f"Unsupported relationship type: {rel_type}")
+        shard_id = partition["factoryPartitionMap"][edge["factoryId"]]
+        shard_edges[shard_id][rel_type].append({
+            "sourceUid": uid(mode, edge["source"]),
+            "targetUid": uid(mode, edge["target"]),
+        })
+
+    return shard_nodes, shard_edges
+
+
+def merge_plans(plans: list[tuple[dict, dict]]) -> tuple[dict, dict]:
+    merged_nodes = defaultdict(lambda: defaultdict(dict))
+    merged_edges = defaultdict(lambda: defaultdict(list))
+    for shard_nodes, shard_edges in plans:
+        for shard_id, by_label in shard_nodes.items():
+            for label, rows in by_label.items():
+                merged_nodes[shard_id][label].update(rows)
+        for shard_id, by_type in shard_edges.items():
+            for rel_type, rows in by_type.items():
+                merged_edges[shard_id][rel_type].extend(rows)
+    return merged_nodes, merged_edges
+
+
+def import_nodes(session, label: str, rows: list[dict]) -> None:
+    for batch in chunks(rows):
+        session.run(
+            f"""
+            UNWIND $rows AS row
+            MERGE (n:{label} {{uid: row.uid}})
+            SET n += row.props
+            """,
+            rows=batch,
+        )
+
+
+def import_relationships(session, rel_type: str, rows: list[dict]) -> None:
+    for batch in chunks(rows):
+        session.run(
+            f"""
+            UNWIND $rows AS row
+            MATCH (a {{uid: row.sourceUid}})
+            MATCH (b {{uid: row.targetUid}})
+            MERGE (a)-[:{rel_type}]->(b)
+            """,
+            rows=batch,
+        )
 
 
 def main() -> None:
-    mode = os.getenv("PARTITION_MODE", "RANDOM").upper()
-    if mode not in {"RANDOM", "METIS"}:
-        raise SystemExit("PARTITION_MODE must be RANDOM or METIS")
-    partition_file = "random_partition_map.json" if mode == "RANDOM" else "metis_partition_map.json"
-
+    modes = selected_modes()
     nodes = load_json(GENERATOR_DIR / "nodes.json")
     edges = load_json(GENERATOR_DIR / "edges.json")
-    partition = load_json(PARTITIONER_DIR / partition_file)
-    validate_subgraphs(edges, partition)
-
     nodes_by_id = {node["id"]: node for node in nodes}
-    shard_nodes = defaultdict(dict)
-    shard_edges = defaultdict(list)
-    for node_id, shard_id in partition["nodePartitionMap"].items():
-        shard_nodes[shard_id][node_id] = nodes_by_id[node_id]
-    for material_id, shards in partition["materialReplicaMap"].items():
-        for shard_id in shards:
-            shard_nodes[shard_id][material_id] = nodes_by_id[material_id]
-    for edge in edges:
-        shard_id = partition["factoryPartitionMap"][edge["factoryId"]]
-        shard_edges[shard_id].append(edge)
+
+    plans = []
+    for mode in modes:
+        partition = load_json(PARTITIONER_DIR / partition_file(mode))
+        plans.append(build_import_plan(mode, nodes_by_id, edges, partition))
+    shard_nodes, shard_edges = merge_plans(plans)
 
     user = os.getenv("NEO4J_USER", "neo4j")
     password = os.getenv("NEO4J_PASSWORD", "password123")
@@ -116,13 +158,16 @@ def main() -> None:
         with driver.session() as session:
             run_cypher_file(session, "clear_neo4j.cypher")
             run_cypher_file(session, "create_indexes.cypher")
-            for node in shard_nodes[shard_id].values():
-                create_node(session, node, shard_id, mode)
-            for edge in shard_edges[shard_id]:
-                create_relationship(session, nodes_by_id[edge["source"]], nodes_by_id[edge["target"]], edge["type"])
+            for label, rows_by_uid in shard_nodes[shard_id].items():
+                import_nodes(session, label, list(rows_by_uid.values()))
+            for rel_type, rows in shard_edges[shard_id].items():
+                import_relationships(session, rel_type, rows)
         driver.close()
-        summary[shard_id] = {"nodes": len(shard_nodes[shard_id]), "edges": len(shard_edges[shard_id])}
-    print(json.dumps({"partitionMode": mode, "summary": summary}, indent=2))
+        summary[shard_id] = {
+            "nodes": sum(len(rows) for rows in shard_nodes[shard_id].values()),
+            "edges": sum(len(rows) for rows in shard_edges[shard_id].values()),
+        }
+    print(json.dumps({"partitionModes": modes, "summary": summary}, indent=2))
 
 
 if __name__ == "__main__":

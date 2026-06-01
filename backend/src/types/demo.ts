@@ -10,10 +10,9 @@ export interface DemoStep {
 export interface DemoState {
   status: DemoStatus;
   activeStep: string | null;
-  activePartitionMode: "RANDOM" | "METIS" | null;
+  activePartitionMode: "RANDOM" | "METIS" | "BOTH" | null;
   steps: DemoStep[];
   logs: string[];
   lastError?: string;
   lastSampleQuery?: unknown;
 }
-

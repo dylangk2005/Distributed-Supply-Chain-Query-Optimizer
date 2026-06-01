@@ -18,7 +18,7 @@ demoRoute.post("/setup", async (_req, res, next) => {
 
 demoRoute.post("/import-neo4j", async (req, res, next) => {
   try {
-    const body = z.object({ partitionMode: z.enum(["RANDOM", "METIS"]) }).parse(req.body);
+    const body = z.object({ partitionMode: z.enum(["RANDOM", "METIS", "ALL"]) }).parse(req.body);
     res.json(await demoService.importNeo4j(body.partitionMode));
   } catch (error) {
     next(error);
@@ -40,4 +40,3 @@ demoRoute.post("/reset", (_req, res, next) => {
     next(error);
   }
 });
-

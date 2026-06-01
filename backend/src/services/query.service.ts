@@ -5,7 +5,7 @@ import { FactoryEnrichmentService } from "./factory-enrichment.service";
 import { ShardRouterService } from "./shard-router.service";
 
 const FACTORY_QUERY = `
-MATCH (m:RawMaterial {name: $materialName})
+MATCH (m:RawMaterial {name: $materialName, partitionMode: $partitionMode})
       <-[:USES]-(c:Component)
       <-[:HAS_COMPONENT]-(p:Part)
       <-[:CONTAINS]-(prd:Product)
@@ -14,7 +14,7 @@ RETURN DISTINCT f.factoryId AS factoryId
 `;
 
 const BFS_QUERY = `
-MATCH (m:RawMaterial {name: $materialName})
+MATCH (m:RawMaterial {name: $materialName, partitionMode: $partitionMode})
 OPTIONAL MATCH (m)<-[:USES]-(c:Component)
 OPTIONAL MATCH (c)<-[:HAS_COMPONENT]-(p:Part)
 OPTIONAL MATCH (p)<-[:CONTAINS]-(prd:Product)
@@ -50,9 +50,10 @@ export class QueryService {
       const driver = shardDrivers[shardId];
       const session = driver.session();
       try {
-        const factories = await session.run(FACTORY_QUERY, { materialName: request.materialName });
+        const params = { materialName: request.materialName, partitionMode: request.partitionMode };
+        const factories = await session.run(FACTORY_QUERY, params);
         factories.records.forEach((record) => factoryIds.add(record.get("factoryId")));
-        const bfs = await session.run(BFS_QUERY, { materialName: request.materialName });
+        const bfs = await session.run(BFS_QUERY, params);
         if (bfs.records[0]) {
           for (const key of Object.keys(bfsCounts)) {
             bfsCounts[key] += numberValue(bfs.records[0].get(key));
@@ -103,4 +104,3 @@ export class QueryService {
     };
   }
 }
-

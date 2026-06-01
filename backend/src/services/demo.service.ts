@@ -74,16 +74,16 @@ class DemoService {
     return this.getStatus();
   }
 
-  async importNeo4j(mode: "RANDOM" | "METIS") {
+  async importNeo4j(mode: "RANDOM" | "METIS" | "ALL") {
     this.ensureIdle();
     this.running = true;
     this.state.status = "running";
     this.state.lastError = undefined;
-    this.setStep("Import Databases", "running", `Importing ${mode} graph into Neo4j shards.`);
+    this.setStep("Import Databases", "running", `Importing ${mode === "ALL" ? "RANDOM + METIS" : mode} graph into Neo4j shards.`);
     try {
-    await this.runCommand(PYTHON, ["importer/import_to_neo4j.py"], { PARTITION_MODE: mode });
-      this.state.activePartitionMode = mode;
-      this.setStep("Import Databases", "done", `${mode} graph is active in Neo4j.`);
+      await this.runCommand(PYTHON, ["importer/import_to_neo4j.py"], { PARTITION_MODE: mode });
+      this.state.activePartitionMode = mode === "ALL" ? "BOTH" : mode;
+      this.setStep("Import Databases", "done", `${mode === "ALL" ? "RANDOM + METIS are" : `${mode} is`} active in Neo4j.`);
       this.state.status = "ready";
     } catch (error) {
       this.state.status = "failed";
@@ -119,11 +119,11 @@ class DemoService {
     await this.runCommand(PYTHON, ["partitioner/topology_metrics.py"]);
     this.setStep("Build Material Directory", "done", "Material directory and topology metrics are ready.");
 
-    this.setStep("Import Databases", "running", "Importing PostgreSQL and METIS graph.");
+    this.setStep("Import Databases", "running", "Importing PostgreSQL and both Neo4j graph modes.");
     await this.runCommand(PYTHON, ["importer/import_to_postgres.py"]);
-    await this.runCommand(PYTHON, ["importer/import_to_neo4j.py"], { PARTITION_MODE: "METIS" });
-    this.state.activePartitionMode = "METIS";
-    this.setStep("Import Databases", "done", "PostgreSQL loaded and METIS graph imported.");
+    await this.runCommand(PYTHON, ["importer/import_to_neo4j.py"], { PARTITION_MODE: "ALL" });
+    this.state.activePartitionMode = "BOTH";
+    this.setStep("Import Databases", "done", "PostgreSQL loaded; RANDOM and METIS graphs imported.");
 
     const sample = await this.sampleQuery();
     this.setStep("Review Benchmark", "done", "Benchmark page can run the prepared scenarios.");
