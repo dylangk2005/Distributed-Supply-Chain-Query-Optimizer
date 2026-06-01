@@ -16,6 +16,38 @@ demoRoute.post("/setup", async (_req, res, next) => {
   }
 });
 
+demoRoute.post("/generate", async (_req, res, next) => {
+  try {
+    res.json(await demoService.generateDataset());
+  } catch (error) {
+    next(error);
+  }
+});
+
+demoRoute.post("/partition", async (_req, res, next) => {
+  try {
+    res.json(await demoService.partitionGraph());
+  } catch (error) {
+    next(error);
+  }
+});
+
+demoRoute.post("/build-directory", async (_req, res, next) => {
+  try {
+    res.json(await demoService.buildMaterialDirectory());
+  } catch (error) {
+    next(error);
+  }
+});
+
+demoRoute.post("/import-postgres", async (_req, res, next) => {
+  try {
+    res.json(await demoService.importPostgres());
+  } catch (error) {
+    next(error);
+  }
+});
+
 demoRoute.post("/import-neo4j", async (req, res, next) => {
   try {
     const body = z.object({ partitionMode: z.enum(["RANDOM", "METIS", "ALL"]) }).parse(req.body);

@@ -11,6 +11,12 @@ from common import GENERATOR_DIR, PARTITIONER_DIR, load_json, shard_uris
 
 LABELS = {"Factory", "Product", "Part", "Component", "RawMaterial"}
 REL_TYPES = {"PRODUCES", "CONTAINS", "HAS_COMPONENT", "USES"}
+REL_SCHEMA = {
+    "PRODUCES": ("Factory", "Product"),
+    "CONTAINS": ("Product", "Part"),
+    "HAS_COMPONENT": ("Part", "Component"),
+    "USES": ("Component", "RawMaterial"),
+}
 BATCH_SIZE = 1000
 CONNECT_RETRIES = 30
 CONNECT_DELAY_SECONDS = 2
@@ -129,13 +135,14 @@ def import_nodes(session, label: str, rows: list[dict]) -> None:
 
 
 def import_relationships(session, rel_type: str, rows: list[dict]) -> None:
+    source_label, target_label = REL_SCHEMA[rel_type]
     for batch in chunks(rows):
         session.run(
             f"""
             UNWIND $rows AS row
-            MATCH (a {{uid: row.sourceUid}})
-            MATCH (b {{uid: row.targetUid}})
-            MERGE (a)-[:{rel_type}]->(b)
+            MATCH (a:{source_label} {{uid: row.sourceUid}})
+            MATCH (b:{target_label} {{uid: row.targetUid}})
+            CREATE (a)-[:{rel_type}]->(b)
             """,
             rows=batch,
         )
@@ -158,6 +165,7 @@ def connect_driver(uri: str, user: str, password: str):
 
 def main() -> None:
     modes = selected_modes()
+    print(f"Preparing Neo4j import for modes: {', '.join(modes)}", flush=True)
     nodes = load_json(GENERATOR_DIR / "nodes.json")
     edges = load_json(GENERATOR_DIR / "edges.json")
     nodes_by_id = {node["id"]: node for node in nodes}
@@ -172,19 +180,25 @@ def main() -> None:
     password = os.getenv("NEO4J_PASSWORD", "password123")
     summary = {}
     for shard_id, uri in shard_uris().items():
+        print(f"{shard_id}: connecting to {uri}", flush=True)
         driver = connect_driver(uri, user, password)
         with driver.session() as session:
+            print(f"{shard_id}: clearing existing graph", flush=True)
             run_cypher_file(session, "clear_neo4j.cypher")
+            print(f"{shard_id}: creating indexes", flush=True)
             run_cypher_file(session, "create_indexes.cypher")
             for label, rows_by_uid in shard_nodes[shard_id].items():
+                print(f"{shard_id}: importing {len(rows_by_uid)} {label} nodes", flush=True)
                 import_nodes(session, label, list(rows_by_uid.values()))
             for rel_type, rows in shard_edges[shard_id].items():
+                print(f"{shard_id}: importing {len(rows)} {rel_type} relationships", flush=True)
                 import_relationships(session, rel_type, rows)
         driver.close()
         summary[shard_id] = {
             "nodes": sum(len(rows) for rows in shard_nodes[shard_id].values()),
             "edges": sum(len(rows) for rows in shard_edges[shard_id].values()),
         }
+        print(f"{shard_id}: done with {summary[shard_id]['nodes']} nodes and {summary[shard_id]['edges']} relationships", flush=True)
     print(json.dumps({"partitionModes": modes, "summary": summary}, indent=2))
 
 

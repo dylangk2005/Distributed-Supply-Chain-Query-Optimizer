@@ -12,7 +12,8 @@ const initialSteps: DemoStep[] = [
   { name: "Generate Dataset", status: "pending", summary: "Create 360 factories and 5-level supply chains." },
   { name: "Partition Graph", status: "pending", summary: "Build RANDOM and METIS factory-subgraph partitions." },
   { name: "Build Material Directory", status: "pending", summary: "Map materials to shards for pruning." },
-  { name: "Import Databases", status: "pending", summary: "Load PostgreSQL metadata and Neo4j graph shards." },
+  { name: "Import PostgreSQL", status: "pending", summary: "Load metadata, documents, material directory, and topology metrics." },
+  { name: "Import Neo4j", status: "pending", summary: "Load RANDOM and METIS graph data into 3 Neo4j shards." },
   { name: "Run Demo Query", status: "pending", summary: "Run Palladium / METIS / OPTIMIZED." },
   { name: "Review Benchmark", status: "pending", summary: "Benchmark is ready after setup." },
   { name: "Review Topology", status: "pending", summary: "Topology metrics are ready after setup." }
@@ -75,24 +76,36 @@ class DemoService {
   }
 
   async importNeo4j(mode: "RANDOM" | "METIS" | "ALL") {
-    this.ensureIdle();
-    this.running = true;
-    this.state.status = "running";
-    this.state.lastError = undefined;
-    this.setStep("Import Databases", "running", `Importing ${mode === "ALL" ? "RANDOM + METIS" : mode} graph into Neo4j shards.`);
-    try {
-      await this.runCommand(PYTHON, ["importer/import_to_neo4j.py"], { PARTITION_MODE: mode });
-      this.state.activePartitionMode = mode === "ALL" ? "BOTH" : mode;
-      this.setStep("Import Databases", "done", `${mode === "ALL" ? "RANDOM + METIS are" : `${mode} is`} active in Neo4j.`);
-      this.state.status = "ready";
-    } catch (error) {
-      this.state.status = "failed";
-      this.setStep("Import Databases", "failed", error instanceof Error ? error.message : "Neo4j import failed.");
-    } finally {
-      this.running = false;
-      this.state.activeStep = null;
-    }
+    await this.runExclusive(() => this.importNeo4jStep(mode));
     return this.getStatus();
+  }
+
+  async generateDataset() {
+    await this.runExclusive(() => this.generateDatasetStep());
+    return this.getStatus();
+  }
+
+  async partitionGraph() {
+    await this.runExclusive(() => this.partitionGraphStep());
+    return this.getStatus();
+  }
+
+  async buildMaterialDirectory() {
+    await this.runExclusive(() => this.buildMaterialDirectoryStep());
+    return this.getStatus();
+  }
+
+  async importPostgres() {
+    await this.runExclusive(() => this.importPostgresStep());
+    return this.getStatus();
+  }
+
+  async importNeo4jStep(mode: "RANDOM" | "METIS" | "ALL") {
+    this.setStep("Import Neo4j", "running", `Importing ${mode === "ALL" ? "RANDOM + METIS" : mode} graph into 3 Neo4j shards.`);
+    await this.runCommand(PYTHON, ["importer/import_to_neo4j.py"], { PARTITION_MODE: mode });
+    this.state.activePartitionMode = mode === "ALL" ? "BOTH" : mode;
+    this.setStep("Import Neo4j", "done", `${mode === "ALL" ? "RANDOM + METIS are" : `${mode} is`} active in Neo4j.`);
+    this.state.status = "ready";
   }
 
   async sampleQuery() {
@@ -102,32 +115,68 @@ class DemoService {
     return result;
   }
 
+  private async runExclusive(action: () => Promise<void>) {
+    this.ensureIdle();
+    this.running = true;
+    this.state.status = "running";
+    this.state.lastError = undefined;
+    try {
+      await action();
+    } catch (error) {
+      this.state.status = "failed";
+      this.state.lastError = error instanceof Error ? error.message : "Demo step failed.";
+      if (this.state.activeStep) {
+        this.setStep(this.state.activeStep, "failed", this.state.lastError);
+      }
+      throw error;
+    } finally {
+      this.running = false;
+      this.state.activeStep = null;
+    }
+  }
+
   private async runSetup() {
+    await this.generateDatasetStep();
+    await this.partitionGraphStep();
+    await this.buildMaterialDirectoryStep();
+    await this.importPostgresStep();
+    await this.importNeo4jStep("ALL");
+
+    const sample = await this.sampleQuery();
+    this.setStep("Review Benchmark", "done", "Benchmark can run the prepared scenarios.");
+    this.setStep("Review Topology", "done", `METIS sample pruned ${sample.metrics.prunedShardCount} shard(s).`);
+    this.state.status = "ready";
+  }
+
+  private async generateDatasetStep() {
     this.setStep("Generate Dataset", "running", "Generating 360 factories.");
     await this.runCommand(PYTHON, ["generator/generate_dataset.py"]);
     const docsPath = path.join(ROOT, "generator", "output", "supply_chain_documents.json");
     const factoryCount = fs.existsSync(docsPath) ? JSON.parse(fs.readFileSync(docsPath, "utf-8")).length : 0;
     this.setStep("Generate Dataset", "done", `${factoryCount} factories generated.`);
+    this.state.status = "ready";
+  }
 
+  private async partitionGraphStep() {
     this.setStep("Partition Graph", "running", "Running RANDOM and METIS partitioners.");
     await this.runCommand(PYTHON, ["partitioner/random_partition.py"]);
     await this.runCommand(PYTHON, ["partitioner/metis_partition.py"]);
     this.setStep("Partition Graph", "done", "RANDOM and METIS partition maps created.");
+    this.state.status = "ready";
+  }
 
+  private async buildMaterialDirectoryStep() {
     this.setStep("Build Material Directory", "running", "Building directory and topology metrics.");
     await this.runCommand(PYTHON, ["partitioner/material_directory_builder.py"]);
     await this.runCommand(PYTHON, ["partitioner/topology_metrics.py"]);
     this.setStep("Build Material Directory", "done", "Material directory and topology metrics are ready.");
+    this.state.status = "ready";
+  }
 
-    this.setStep("Import Databases", "running", "Importing PostgreSQL and both Neo4j graph modes.");
+  private async importPostgresStep() {
+    this.setStep("Import PostgreSQL", "running", "Importing PostgreSQL metadata, directory, and topology metrics.");
     await this.runCommand(PYTHON, ["importer/import_to_postgres.py"]);
-    await this.runCommand(PYTHON, ["importer/import_to_neo4j.py"], { PARTITION_MODE: "ALL" });
-    this.state.activePartitionMode = "BOTH";
-    this.setStep("Import Databases", "done", "PostgreSQL loaded; RANDOM and METIS graphs imported.");
-
-    const sample = await this.sampleQuery();
-    this.setStep("Review Benchmark", "done", "Benchmark page can run the prepared scenarios.");
-    this.setStep("Review Topology", "done", `METIS sample pruned ${sample.metrics.prunedShardCount} shard(s).`);
+    this.setStep("Import PostgreSQL", "done", "PostgreSQL metadata, directory, and topology are loaded.");
     this.state.status = "ready";
   }
 
