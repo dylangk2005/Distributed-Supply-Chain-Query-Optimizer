@@ -15,6 +15,7 @@ type QueryResponse = {
   };
   metrics: {
     executionTimeMs: number;
+    estimatedDistributedCostMs: number;
     visitedShardCount: number;
     prunedShardCount: number;
     affectedFactoryCount: number;
@@ -27,7 +28,7 @@ const scenarios = [
   { label: "Best pruning", materialName: "Palladium", partitionMode: "METIS", queryMode: "OPTIMIZED" }
 ];
 
-const allShards = ["shard_1", "shard_2", "shard_3", "shard_4", "shard_5"];
+const allShards = ["shard_1", "shard_2", "shard_3"];
 
 export default function QueryPage() {
   const [materialName, setMaterialName] = useState("Lithium");
@@ -109,10 +110,10 @@ export default function QueryPage() {
       {result && (
         <>
           <div className="grid" style={{ marginTop: 16 }}>
-            <div className="card"><div className="metric">{result.metrics.executionTimeMs}ms</div><p>Execution time</p></div>
+            <div className="card"><div className="metric">{result.metrics.estimatedDistributedCostMs}ms</div><p>Distributed cost</p></div>
+            <div className="card"><div className="metric">{result.metrics.executionTimeMs}ms</div><p>Runtime</p></div>
             <div className="card"><div className="metric">{result.metrics.visitedShardCount}</div><p>Visited shards</p></div>
             <div className="card"><div className="metric">{result.metrics.prunedShardCount}</div><p>Pruned shards</p></div>
-            <div className="card"><div className="metric">{result.metrics.affectedFactoryCount}</div><p>Affected factories</p></div>
           </div>
           <section className="panel" style={{ marginTop: 16 }}>
             <h2>Shard Plan</h2>

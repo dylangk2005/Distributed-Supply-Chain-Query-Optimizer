@@ -66,6 +66,7 @@ export class QueryService {
 
     const affectedFactories = await this.enrichment.enrich([...factoryIds]);
     const executionTimeMs = Date.now() - started;
+    const estimatedDistributedCostMs = executionTimeMs + route.visitedShards.length * 60;
     const executionPlan = this.plans.build({
       queryId,
       partitionMode: request.partitionMode,
@@ -97,6 +98,7 @@ export class QueryService {
       executionPlan,
       metrics: {
         executionTimeMs,
+        estimatedDistributedCostMs,
         visitedShardCount: route.visitedShards.length,
         prunedShardCount: route.prunedShards.length,
         affectedFactoryCount: affectedFactories.length

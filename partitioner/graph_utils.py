@@ -6,7 +6,7 @@ from typing import Any
 
 INPUT_DIR = Path("/app/input") if Path("/app/input").exists() else Path(__file__).resolve().parent.parent / "generator" / "output"
 OUTPUT_DIR = Path("/app/output") if Path("/app/output").exists() else Path(__file__).resolve().parent / "output"
-NUM_SHARDS = 5
+NUM_SHARDS = 3
 SHARDS = [f"shard_{index}" for index in range(1, NUM_SHARDS + 1)]
 
 
@@ -108,4 +108,3 @@ def summarize(payload: dict, edges: list[dict]) -> dict:
         "totalNodesAssigned": sum(node_counts.values()),
         "totalEdges": len(edges),
     }
-

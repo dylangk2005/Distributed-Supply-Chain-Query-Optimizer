@@ -16,7 +16,7 @@ type DemoState = {
 type QueryResponse = {
   affectedFactories: Array<{ factoryId: string; factoryName: string; region: string; riskScore: number }>;
   executionPlan: { visitedShards: string[]; prunedShards: string[]; bfsLevels: Array<{ nodeType: string; count: number }> };
-  metrics: { executionTimeMs: number; visitedShardCount: number; prunedShardCount: number; affectedFactoryCount: number };
+  metrics: { executionTimeMs: number; estimatedDistributedCostMs: number; visitedShardCount: number; prunedShardCount: number; affectedFactoryCount: number };
 };
 type Log = {
   queryId: string;
@@ -27,6 +27,7 @@ type Log = {
   prunedShards: string[];
   affectedFactoryCount: number;
   executionTimeMs: number;
+  estimatedDistributedCostMs: number;
 };
 type Metrics = {
   projectionNodes: number;
@@ -36,7 +37,7 @@ type Metrics = {
   nodeCountByShard: Record<string, number>;
 };
 
-const allShards = ["shard_1", "shard_2", "shard_3", "shard_4", "shard_5"];
+const allShards = ["shard_1", "shard_2", "shard_3"];
 const scenarios = [
   { label: "Broad impact", materialName: "Steel", partitionMode: "RANDOM", queryMode: "NAIVE" },
   { label: "Medium impact", materialName: "Lithium", partitionMode: "METIS", queryMode: "OPTIMIZED" },
@@ -109,7 +110,7 @@ export default function OnePageDemo() {
       <section className="hero">
         <div className="hero-main">
           <h1>Supply Chain Map One-Page Demo</h1>
-          <p>Setup data, run Cypher shortage queries, compare Random vs METIS, and inspect topology from this single screen.</p>
+          <p>Setup a compact 3-shard graph, run Cypher shortage queries, compare Random vs METIS, and inspect topology from this single screen.</p>
           <div className="actions">
             <button onClick={() => runAction(() => apiPost("/api/demo/setup"))} disabled={running}><Play size={16} />Run Full Setup</button>
             <button className="secondary" onClick={() => runAction(() => apiPost("/api/demo/import-neo4j", { partitionMode: "ALL" }))} disabled={running}><Database size={16} />Fast Re-Import Graphs</button>
@@ -175,10 +176,10 @@ export default function OnePageDemo() {
         {queryResult ? (
           <>
             <div className="grid" style={{ marginTop: 16 }}>
-              <div className="card"><div className="metric">{queryResult.metrics.executionTimeMs}ms</div><p>Time</p></div>
+              <div className="card"><div className="metric">{queryResult.metrics.estimatedDistributedCostMs}ms</div><p>Distributed Cost</p></div>
+              <div className="card"><div className="metric">{queryResult.metrics.executionTimeMs}ms</div><p>Actual Runtime</p></div>
               <div className="card"><div className="metric">{queryResult.metrics.visitedShardCount}</div><p>Visited Shards</p></div>
               <div className="card"><div className="metric">{queryResult.metrics.prunedShardCount}</div><p>Pruned Shards</p></div>
-              <div className="card"><div className="metric">{queryResult.metrics.affectedFactoryCount}</div><p>Affected Factories</p></div>
             </div>
             <div className="shard-grid" style={{ marginTop: 16 }}>
               {allShards.map((shard) => {
@@ -202,7 +203,7 @@ export default function OnePageDemo() {
         <div className="title">
           <div>
             <h2>3. Benchmark and Topology</h2>
-            <p>For timing, focus on visited/pruned shards. Exact milliseconds can vary because optimized mode also does a directory lookup.</p>
+            <p>Distributed Cost is the stable demo metric. Actual Runtime can vary because local Docker and cache effects are noisy.</p>
           </div>
           <button className="secondary" onClick={() => runAction(() => apiPost("/api/benchmark/run"))} disabled={running}>Run Benchmark</button>
         </div>
@@ -213,10 +214,10 @@ export default function OnePageDemo() {
           <div className="card"><h3>METIS Edge-Cut</h3><div className="metric">{metis?.edgeCutRatio ?? "-"}</div><p>Projection graph spread</p></div>
         </div>
         <table style={{ marginTop: 16 }}>
-          <thead><tr><th>Material</th><th>Partition</th><th>Mode</th><th>Time</th><th>Visited</th><th>Pruned</th><th>Factories</th></tr></thead>
+          <thead><tr><th>Material</th><th>Partition</th><th>Mode</th><th>Distributed Cost</th><th>Runtime</th><th>Visited</th><th>Pruned</th><th>Factories</th></tr></thead>
           <tbody>
             {logs.slice(0, 8).map((log) => (
-              <tr key={log.queryId}><td>{log.materialName}</td><td>{log.partitionMode}</td><td>{log.queryMode}</td><td>{log.executionTimeMs}ms</td><td>{log.visitedShards.length}</td><td>{log.prunedShards.length}</td><td>{log.affectedFactoryCount}</td></tr>
+              <tr key={log.queryId}><td>{log.materialName}</td><td>{log.partitionMode}</td><td>{log.queryMode}</td><td>{log.estimatedDistributedCostMs}ms</td><td>{log.executionTimeMs}ms</td><td>{log.visitedShards.length}</td><td>{log.prunedShards.length}</td><td>{log.affectedFactoryCount}</td></tr>
             ))}
           </tbody>
         </table>
@@ -229,4 +230,3 @@ export default function OnePageDemo() {
     </>
   );
 }
-

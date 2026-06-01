@@ -9,7 +9,7 @@ const MAX_LOGS = 240;
 const PYTHON = process.platform === "win32" ? "python" : "python3";
 
 const initialSteps: DemoStep[] = [
-  { name: "Generate Dataset", status: "pending", summary: "Create 800 factories and 5-level supply chains." },
+  { name: "Generate Dataset", status: "pending", summary: "Create 360 factories and 5-level supply chains." },
   { name: "Partition Graph", status: "pending", summary: "Build RANDOM and METIS factory-subgraph partitions." },
   { name: "Build Material Directory", status: "pending", summary: "Map materials to shards for pruning." },
   { name: "Import Databases", status: "pending", summary: "Load PostgreSQL metadata and Neo4j graph shards." },
@@ -103,7 +103,7 @@ class DemoService {
   }
 
   private async runSetup() {
-    this.setStep("Generate Dataset", "running", "Generating 800 factories.");
+    this.setStep("Generate Dataset", "running", "Generating 360 factories.");
     await this.runCommand(PYTHON, ["generator/generate_dataset.py"]);
     const docsPath = path.join(ROOT, "generator", "output", "supply_chain_documents.json");
     const factoryCount = fs.existsSync(docsPath) ? JSON.parse(fs.readFileSync(docsPath, "utf-8")).length : 0;

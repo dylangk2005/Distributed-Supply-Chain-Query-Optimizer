@@ -1,14 +1,57 @@
 import json
+from collections import defaultdict
 
 from graph_utils import (
     OUTPUT_DIR,
     build_partition_payload,
-    factory_material_edges,
     factory_subgraphs,
     load_graph,
+    node_maps,
     summarize,
     write_json,
 )
+
+
+def weighted_factory_material_edges(nodes: list[dict], edges: list[dict]) -> dict[tuple[str, str], int]:
+    by_id, _ = node_maps(nodes)
+    weights = {"COMMON": 1, "MEDIUM": 3, "RARE": 14}
+    result: dict[tuple[str, str], int] = defaultdict(int)
+    for edge in edges:
+        if edge["type"] != "USES":
+            continue
+        material = by_id[edge["target"]]["properties"]
+        result[(edge["factoryId"], edge["target"])] += weights.get(material["frequencyGroup"], 1)
+    return result
+
+
+def refine_rare_material_outliers(nodes: list[dict], edges: list[dict], factory_to_shard: dict[str, int]) -> None:
+    by_id, _ = node_maps(nodes)
+    material_factories: dict[str, set[str]] = defaultdict(set)
+    for edge in edges:
+        if edge["type"] == "USES":
+            material_factories[edge["target"]].add(edge["factoryId"])
+
+    for material_id, factory_ids in sorted(material_factories.items()):
+        material = by_id[material_id]["properties"]
+        if material["frequencyGroup"] != "RARE":
+            continue
+
+        factories_by_shard: dict[int, list[str]] = defaultdict(list)
+        for factory_id in factory_ids:
+            factories_by_shard[factory_to_shard[factory_id]].append(factory_id)
+        if len(factories_by_shard) <= 1:
+            continue
+
+        majority_shard, majority_factories = max(factories_by_shard.items(), key=lambda item: len(item[1]))
+        outliers = [
+            factory_id
+            for shard, shard_factories in factories_by_shard.items()
+            if shard != majority_shard and len(shard_factories) <= 2
+            for factory_id in shard_factories
+        ]
+        if outliers and len(majority_factories) >= 20:
+            for factory_id in outliers:
+                factory_to_shard[factory_id] = majority_shard
 
 
 def main() -> None:
@@ -18,19 +61,28 @@ def main() -> None:
         raise SystemExit("pymetis is required. Install with: pip install -r partitioner/requirements.txt") from exc
 
     nodes, edges, _ = load_graph()
-    projection_edges = factory_material_edges(nodes, edges)
+    projection_edges = weighted_factory_material_edges(nodes, edges)
     subgraphs = factory_subgraphs(nodes, edges)
     projection_nodes = sorted({item for edge in projection_edges for item in edge})
     index = {node_id: idx for idx, node_id in enumerate(projection_nodes)}
     reverse = {idx: node_id for node_id, idx in index.items()}
-    adjacency = [set() for _ in projection_nodes]
-    for source, target in projection_edges:
+    adjacency: list[dict[int, int]] = [defaultdict(int) for _ in projection_nodes]
+    for (source, target), weight in projection_edges.items():
         source_index = index[source]
         target_index = index[target]
-        adjacency[source_index].add(target_index)
-        adjacency[target_index].add(source_index)
+        adjacency[source_index][target_index] += weight
+        adjacency[target_index][source_index] += weight
 
-    edgecuts, parts = pymetis.part_graph(5, adjacency=[sorted(values) for values in adjacency])
+    xadj = [0]
+    adjncy = []
+    eweights = []
+    for values in adjacency:
+        for neighbor, weight in sorted(values.items()):
+            adjncy.append(neighbor)
+            eweights.append(weight)
+        xadj.append(len(adjncy))
+
+    edgecuts, parts = pymetis.part_graph(3, xadj=xadj, adjncy=adjncy, eweights=eweights)
     factory_to_shard = {}
     for idx, part_id in enumerate(parts):
         node_id = reverse[idx]
@@ -39,7 +91,9 @@ def main() -> None:
 
     # Isolated factories are unlikely, but assign them deterministically if projection data is missing.
     for ordinal, factory_id in enumerate(sorted(subgraphs)):
-        factory_to_shard.setdefault(factory_id, ordinal % 5)
+        factory_to_shard.setdefault(factory_id, ordinal % 3)
+
+    refine_rare_material_outliers(nodes, edges, factory_to_shard)
 
     payload = build_partition_payload(factory_to_shard, subgraphs)
     payload["partitionMode"] = "METIS"
@@ -51,4 +105,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -13,6 +13,7 @@ type Log = {
   prunedShards: string[];
   affectedFactoryCount: number;
   executionTimeMs: number;
+  estimatedDistributedCostMs: number;
 };
 
 export default function BenchmarkPage() {
@@ -59,7 +60,7 @@ export default function BenchmarkPage() {
       <section className="panel">
         <table>
           <thead>
-            <tr><th>Material</th><th>Partition</th><th>Mode</th><th>Time</th><th>Visited</th><th>Pruned</th><th>Factories</th></tr>
+            <tr><th>Material</th><th>Partition</th><th>Mode</th><th>Distributed Cost</th><th>Runtime</th><th>Visited</th><th>Pruned</th><th>Factories</th></tr>
           </thead>
           <tbody>
             {logs.map((log) => (
@@ -67,6 +68,7 @@ export default function BenchmarkPage() {
                 <td>{log.materialName}</td>
                 <td>{log.partitionMode}</td>
                 <td>{log.queryMode}</td>
+                <td>{log.estimatedDistributedCostMs}ms</td>
                 <td>{log.executionTimeMs}ms</td>
                 <td>{log.visitedShards.length}</td>
                 <td>{log.prunedShards.length}</td>

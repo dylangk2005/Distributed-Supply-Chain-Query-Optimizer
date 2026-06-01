@@ -14,6 +14,8 @@ export class BenchmarkService {
         materialName,
         randomNaiveTimeMs: random.metrics.executionTimeMs,
         metisOptimizedTimeMs: metis.metrics.executionTimeMs,
+        randomEstimatedCostMs: random.metrics.estimatedDistributedCostMs,
+        metisEstimatedCostMs: metis.metrics.estimatedDistributedCostMs,
         randomVisitedShards: random.metrics.visitedShardCount,
         metisVisitedShards: metis.metrics.visitedShardCount,
         affectedFactoryCount: metis.metrics.affectedFactoryCount
@@ -39,8 +41,8 @@ export class BenchmarkService {
       prunedShards: row.pruned_shards,
       affectedFactoryCount: row.affected_factory_count,
       executionTimeMs: row.execution_time_ms,
+      estimatedDistributedCostMs: row.execution_time_ms + row.visited_shards.length * 60,
       createdAt: row.created_at
     }));
   }
 }
-
