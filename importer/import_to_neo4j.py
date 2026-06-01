@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from collections import defaultdict
 from typing import Iterable
 
@@ -11,6 +12,8 @@ from common import GENERATOR_DIR, PARTITIONER_DIR, load_json, shard_uris
 LABELS = {"Factory", "Product", "Part", "Component", "RawMaterial"}
 REL_TYPES = {"PRODUCES", "CONTAINS", "HAS_COMPONENT", "USES"}
 BATCH_SIZE = 1000
+CONNECT_RETRIES = 30
+CONNECT_DELAY_SECONDS = 2
 
 
 def label_for(node: dict) -> str:
@@ -138,6 +141,21 @@ def import_relationships(session, rel_type: str, rows: list[dict]) -> None:
         )
 
 
+def connect_driver(uri: str, user: str, password: str):
+    last_error = None
+    for attempt in range(1, CONNECT_RETRIES + 1):
+        driver = GraphDatabase.driver(uri, auth=(user, password))
+        try:
+            driver.verify_connectivity()
+            return driver
+        except Exception as exc:
+            last_error = exc
+            driver.close()
+            if attempt < CONNECT_RETRIES:
+                time.sleep(CONNECT_DELAY_SECONDS)
+    raise RuntimeError(f"Neo4j at {uri} was not ready after {CONNECT_RETRIES} attempts") from last_error
+
+
 def main() -> None:
     modes = selected_modes()
     nodes = load_json(GENERATOR_DIR / "nodes.json")
@@ -154,7 +172,7 @@ def main() -> None:
     password = os.getenv("NEO4J_PASSWORD", "password123")
     summary = {}
     for shard_id, uri in shard_uris().items():
-        driver = GraphDatabase.driver(uri, auth=(user, password))
+        driver = connect_driver(uri, user, password)
         with driver.session() as session:
             run_cypher_file(session, "clear_neo4j.cypher")
             run_cypher_file(session, "create_indexes.cypher")
@@ -172,4 +190,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
