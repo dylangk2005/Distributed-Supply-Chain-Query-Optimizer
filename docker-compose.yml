@@ -88,7 +88,9 @@ services:
       - neo4j_shard_5_data:/data
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: scm-backend
     ports:
       - "8080:8080"
@@ -177,4 +179,3 @@ volumes:
   neo4j_shard_3_data:
   neo4j_shard_4_data:
   neo4j_shard_5_data:
-

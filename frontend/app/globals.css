@@ -7,6 +7,8 @@
   --blue: #2563eb;
   --green: #0f766e;
   --red: #b42318;
+  --amber: #b45309;
+  --soft: #eef2f7;
 }
 
 * {
@@ -72,6 +74,22 @@ button {
   font-weight: 700;
 }
 
+button.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+button.green {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+button.amber {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: progress;
@@ -104,6 +122,33 @@ p {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+
+.hero-main {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.hero-main h1 {
+  font-size: 34px;
+  line-height: 1.15;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
 }
 
 .panel,
@@ -157,6 +202,112 @@ label {
   border-color: #f3b6b0;
   background: #fff0ef;
   color: var(--red);
+}
+
+.badge.amber {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: var(--amber);
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  background: var(--muted);
+}
+
+.status-dot.done,
+.status-dot.ready {
+  background: var(--green);
+}
+
+.status-dot.running {
+  background: var(--blue);
+}
+
+.status-dot.failed {
+  background: var(--red);
+}
+
+.stepper {
+  display: grid;
+  gap: 12px;
+}
+
+.demo-step {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+.demo-step strong {
+  display: block;
+}
+
+.log-panel {
+  max-height: 260px;
+  overflow: auto;
+  background: #101828;
+  color: #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.shard-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(72px, 1fr));
+  gap: 10px;
+}
+
+.shard-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 8px;
+  text-align: center;
+  background: var(--soft);
+}
+
+.shard-box.visited {
+  border-color: #99d5ca;
+  background: #e9fbf7;
+  color: var(--green);
+}
+
+.shard-box.pruned {
+  border-color: #f3b6b0;
+  background: #fff0ef;
+  color: var(--red);
+}
+
+.empty-state {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 22px;
+  text-align: center;
+  background: var(--surface);
+}
+
+@media (max-width: 760px) {
+  .hero,
+  .title {
+    grid-template-columns: 1fr;
+    display: grid;
+    align-items: start;
+  }
+
+  .shard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 table {

@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import { ZodError } from "zod";
 import { benchmarkRoute } from "./routes/benchmark.route";
+import { demoRoute } from "./routes/demo.route";
 import { factoryRoute } from "./routes/factory.route";
 import { queryRoute } from "./routes/query.route";
 import { topologyRoute } from "./routes/topology.route";
@@ -18,18 +19,19 @@ app.use("/api/query", queryRoute);
 app.use("/api/topology", topologyRoute);
 app.use("/api/benchmark", benchmarkRoute);
 app.use("/api/factories", factoryRoute);
+app.use("/api/demo", demoRoute);
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : undefined;
   if (error instanceof ZodError) {
     res.status(400).json({ message: "Invalid request", issues: error.issues });
     return;
   }
   const message = error instanceof Error ? error.message : "Internal server error";
-  res.status(500).json({ message });
+  res.status(statusCode ?? 500).json({ message });
 });
 
 const port = Number(process.env.PORT ?? 8080);
 app.listen(port, () => {
   console.log(`Backend listening on ${port}`);
 });
-

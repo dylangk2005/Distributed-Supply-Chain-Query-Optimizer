@@ -46,6 +46,16 @@ export default function BenchmarkPage() {
         </div>
         <button onClick={run} disabled={loading}><Play size={16} />Run Benchmark</button>
       </div>
+      <div className="grid" style={{ marginBottom: 16 }}>
+        <div className="card">
+          <h2>Demo Takeaway</h2>
+          <p>METIS + Optimized should visit fewer shards for rare materials such as Palladium.</p>
+        </div>
+        <div className="card">
+          <p>Latest runs</p>
+          <div className="metric">{logs.length}</div>
+        </div>
+      </div>
       <section className="panel">
         <table>
           <thead>
@@ -69,4 +79,3 @@ export default function BenchmarkPage() {
     </>
   );
 }
-

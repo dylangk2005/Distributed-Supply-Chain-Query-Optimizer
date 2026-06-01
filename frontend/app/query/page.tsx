@@ -21,6 +21,14 @@ type QueryResponse = {
   };
 };
 
+const scenarios = [
+  { label: "Broad impact", materialName: "Steel", partitionMode: "RANDOM", queryMode: "NAIVE" },
+  { label: "Medium impact", materialName: "Lithium", partitionMode: "METIS", queryMode: "OPTIMIZED" },
+  { label: "Best pruning", materialName: "Palladium", partitionMode: "METIS", queryMode: "OPTIMIZED" }
+];
+
+const allShards = ["shard_1", "shard_2", "shard_3", "shard_4", "shard_5"];
+
 export default function QueryPage() {
   const [materialName, setMaterialName] = useState("Lithium");
   const [partitionMode, setPartitionMode] = useState("METIS");
@@ -43,6 +51,12 @@ export default function QueryPage() {
     }
   }
 
+  function applyScenario(scenario: typeof scenarios[number]) {
+    setMaterialName(scenario.materialName);
+    setPartitionMode(scenario.partitionMode);
+    setQueryMode(scenario.queryMode);
+  }
+
   return (
     <>
       <div className="title">
@@ -52,10 +66,21 @@ export default function QueryPage() {
         </div>
       </div>
       <section className="panel">
+        <div className="actions" style={{ marginTop: 0, marginBottom: 14 }}>
+          {scenarios.map((scenario) => (
+            <button className="secondary" key={scenario.label} onClick={() => applyScenario(scenario)}>{scenario.label}</button>
+          ))}
+        </div>
         <div className="form">
           <label>
             Material
-            <input value={materialName} onChange={(event) => setMaterialName(event.target.value)} />
+            <select value={materialName} onChange={(event) => setMaterialName(event.target.value)}>
+              <option>Steel</option>
+              <option>Lithium</option>
+              <option>Palladium</option>
+              <option>Copper</option>
+              <option>Nickel</option>
+            </select>
           </label>
           <label>
             Partition
@@ -74,7 +99,13 @@ export default function QueryPage() {
           <button onClick={runQuery} disabled={loading}><Play size={16} />Run Query</button>
         </div>
       </section>
-      {error && <p>{error}</p>}
+      {error && <section className="empty-state" style={{ marginTop: 16 }}><strong>Query failed</strong><p>{error}</p><p>Open the Demo page and run setup if data is not imported yet.</p></section>}
+      {!result && !error && (
+        <section className="empty-state" style={{ marginTop: 16 }}>
+          <strong>No query result yet</strong>
+          <p>Choose a scenario, then run the query. Use Best pruning for the clearest METIS demo.</p>
+        </section>
+      )}
       {result && (
         <>
           <div className="grid" style={{ marginTop: 16 }}>
@@ -85,10 +116,12 @@ export default function QueryPage() {
           </div>
           <section className="panel" style={{ marginTop: 16 }}>
             <h2>Shard Plan</h2>
-            <p>Visited</p>
-            <div className="badge-row">{result.executionPlan.visitedShards.map((item) => <span className="badge green" key={item}>{item}</span>)}</div>
-            <p>Pruned</p>
-            <div className="badge-row">{result.executionPlan.prunedShards.map((item) => <span className="badge red" key={item}>{item}</span>)}</div>
+            <div className="shard-grid">
+              {allShards.map((shard) => {
+                const status = result.executionPlan.visitedShards.includes(shard) ? "visited" : result.executionPlan.prunedShards.includes(shard) ? "pruned" : "";
+                return <div className={`shard-box ${status}`} key={shard}><strong>{shard}</strong><p>{status || "idle"}</p></div>;
+              })}
+            </div>
           </section>
           <section className="panel" style={{ marginTop: 16 }}>
             <h2>Affected Factories</h2>
@@ -111,4 +144,3 @@ export default function QueryPage() {
     </>
   );
 }
-

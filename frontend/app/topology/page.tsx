@@ -43,6 +43,10 @@ export default async function TopologyPage() {
         ))}
       </div>
       <section className="panel" style={{ marginTop: 16 }}>
+        <h2>Demo Takeaway</h2>
+        <p>Lower material replication means the coordinator can query fewer shards for the same raw material. In this dataset, METIS groups factories with similar material dependencies.</p>
+      </section>
+      <section className="panel" style={{ marginTop: 16 }}>
         <h2>Shard Node Counts</h2>
         <div className="grid">
           {modes.flatMap(([mode, metrics]) =>
@@ -58,4 +62,3 @@ export default async function TopologyPage() {
     </>
   );
 }
-

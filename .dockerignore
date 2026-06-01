@@ -1,0 +1,11 @@
+.git
+backend/node_modules
+backend/dist
+frontend/node_modules
+frontend/.next
+generator/output/*.json
+partitioner/output/*.json
+__pycache__
+*.pyc
+*.log
+
