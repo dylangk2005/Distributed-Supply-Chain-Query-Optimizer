@@ -1,0 +1,180 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: scm-postgres
+    environment:
+      POSTGRES_DB: supply_chain_map
+      POSTGRES_USER: scm_user
+      POSTGRES_PASSWORD: scm_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  neo4j-shard-1:
+    image: neo4j:5
+    container_name: neo4j-shard-1
+    mem_limit: 1200m
+    environment:
+      NEO4J_AUTH: neo4j/password123
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "7471:7474"
+      - "7681:7687"
+    volumes:
+      - neo4j_shard_1_data:/data
+
+  neo4j-shard-2:
+    image: neo4j:5
+    container_name: neo4j-shard-2
+    mem_limit: 1200m
+    environment:
+      NEO4J_AUTH: neo4j/password123
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "7472:7474"
+      - "7682:7687"
+    volumes:
+      - neo4j_shard_2_data:/data
+
+  neo4j-shard-3:
+    image: neo4j:5
+    container_name: neo4j-shard-3
+    mem_limit: 1200m
+    environment:
+      NEO4J_AUTH: neo4j/password123
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "7473:7474"
+      - "7683:7687"
+    volumes:
+      - neo4j_shard_3_data:/data
+
+  neo4j-shard-4:
+    image: neo4j:5
+    container_name: neo4j-shard-4
+    mem_limit: 1200m
+    environment:
+      NEO4J_AUTH: neo4j/password123
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "7474:7474"
+      - "7684:7687"
+    volumes:
+      - neo4j_shard_4_data:/data
+
+  neo4j-shard-5:
+    image: neo4j:5
+    container_name: neo4j-shard-5
+    mem_limit: 1200m
+    environment:
+      NEO4J_AUTH: neo4j/password123
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "7475:7474"
+      - "7685:7687"
+    volumes:
+      - neo4j_shard_5_data:/data
+
+  backend:
+    build: ./backend
+    container_name: scm-backend
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: supply_chain_map
+      POSTGRES_USER: scm_user
+      POSTGRES_PASSWORD: scm_password
+      NEO4J_SHARD_1_URI: bolt://neo4j-shard-1:7687
+      NEO4J_SHARD_2_URI: bolt://neo4j-shard-2:7687
+      NEO4J_SHARD_3_URI: bolt://neo4j-shard-3:7687
+      NEO4J_SHARD_4_URI: bolt://neo4j-shard-4:7687
+      NEO4J_SHARD_5_URI: bolt://neo4j-shard-5:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password123
+    depends_on:
+      - postgres
+      - neo4j-shard-1
+      - neo4j-shard-2
+      - neo4j-shard-3
+      - neo4j-shard-4
+      - neo4j-shard-5
+
+  frontend:
+    build: ./frontend
+    container_name: scm-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+    depends_on:
+      - backend
+
+  generator:
+    build: ./generator
+    container_name: scm-generator
+    volumes:
+      - ./generator/output:/app/output
+    profiles:
+      - tools
+
+  partitioner:
+    build: ./partitioner
+    container_name: scm-partitioner
+    volumes:
+      - ./generator/output:/app/input
+      - ./partitioner/output:/app/output
+    profiles:
+      - tools
+
+  importer:
+    build: ./importer
+    container_name: scm-importer
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: supply_chain_map
+      POSTGRES_USER: scm_user
+      POSTGRES_PASSWORD: scm_password
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password123
+      NEO4J_SHARD_1_URI: bolt://neo4j-shard-1:7687
+      NEO4J_SHARD_2_URI: bolt://neo4j-shard-2:7687
+      NEO4J_SHARD_3_URI: bolt://neo4j-shard-3:7687
+      NEO4J_SHARD_4_URI: bolt://neo4j-shard-4:7687
+      NEO4J_SHARD_5_URI: bolt://neo4j-shard-5:7687
+    volumes:
+      - ./generator/output:/app/generator-output
+      - ./partitioner/output:/app/partitioner-output
+    depends_on:
+      - postgres
+      - neo4j-shard-1
+      - neo4j-shard-2
+      - neo4j-shard-3
+      - neo4j-shard-4
+      - neo4j-shard-5
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+  neo4j_shard_1_data:
+  neo4j_shard_2_data:
+  neo4j_shard_3_data:
+  neo4j_shard_4_data:
+  neo4j_shard_5_data:
+

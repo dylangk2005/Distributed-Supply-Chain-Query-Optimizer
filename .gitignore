@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.local
+generator/output/*.json
+partitioner/output/*.json
+!generator/output/.gitkeep
+!partitioner/output/.gitkeep
+neo4j*/data/
+postgres/data/
+*.log
+

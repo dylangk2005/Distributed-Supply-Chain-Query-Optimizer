@@ -1,0 +1,61 @@
+import { apiGet } from "../api";
+
+type Metrics = {
+  projectionNodes: number;
+  projectionEdges: number;
+  crossShardEdges: number;
+  edgeCutRatio: number;
+  materialReplication: number;
+  nodeCountByShard: Record<string, number>;
+};
+
+export default async function TopologyPage() {
+  let data: Record<string, Metrics> = {};
+  try {
+    data = await apiGet<Record<string, Metrics>>("/api/topology");
+  } catch {
+    data = {};
+  }
+  const modes = Object.entries(data);
+
+  return (
+    <>
+      <div className="title">
+        <div>
+          <h1>Topology</h1>
+          <p>Projection graph metrics for Random and METIS partitions.</p>
+        </div>
+      </div>
+      <div className="grid">
+        {modes.map(([mode, metrics]) => (
+          <section className="card" key={mode}>
+            <h2>{mode.toUpperCase()}</h2>
+            <p>Projection nodes</p>
+            <div className="metric">{metrics.projectionNodes}</div>
+            <p>Projection edges</p>
+            <div className="metric">{metrics.projectionEdges}</div>
+            <p>Edge-cut ratio</p>
+            <div className="bar"><span style={{ width: `${Math.min(metrics.edgeCutRatio * 100, 100)}%` }} /></div>
+            <p>{metrics.edgeCutRatio}</p>
+            <p>Material replication</p>
+            <div className="metric">{metrics.materialReplication}</div>
+          </section>
+        ))}
+      </div>
+      <section className="panel" style={{ marginTop: 16 }}>
+        <h2>Shard Node Counts</h2>
+        <div className="grid">
+          {modes.flatMap(([mode, metrics]) =>
+            Object.entries(metrics.nodeCountByShard ?? {}).map(([shard, count]) => (
+              <div className="card" key={`${mode}-${shard}`}>
+                <strong>{mode.toUpperCase()} · {shard}</strong>
+                <div className="metric">{count}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
