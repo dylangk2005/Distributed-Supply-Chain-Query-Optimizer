@@ -119,6 +119,8 @@ export default function OnePageDemo() {
   const [topology, setTopology] = useState<Record<string, Metrics>>({});
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
   const [benchmark, setBenchmark] = useState<BenchmarkResponse | null>(null);
+  const [benchmarkStatus, setBenchmarkStatus] = useState<"idle" | "running" | "done" | "failed">("idle");
+  const [benchmarkRanAt, setBenchmarkRanAt] = useState("");
   const [materialName, setMaterialName] = useState("Palladium");
   const [partitionMode, setPartitionMode] = useState("METIS");
   const [queryMode, setQueryMode] = useState("OPTIMIZED");
@@ -166,6 +168,24 @@ export default function OnePageDemo() {
 
   async function runQuery() {
     await runAction(() => apiPost<QueryResponse>("/api/query", { materialName, partitionMode, queryMode }));
+  }
+
+  async function runBenchmark() {
+    setBusy(true);
+    setBenchmarkStatus("running");
+    setError("");
+    try {
+      const result = await apiPost<BenchmarkResponse>("/api/benchmark/run");
+      setBenchmark(result);
+      setBenchmarkStatus("done");
+      setBenchmarkRanAt(new Date().toLocaleTimeString());
+      await refresh();
+    } catch (err) {
+      setBenchmarkStatus("failed");
+      setError(err instanceof Error ? err.message : "Benchmark failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function applyScenario(scenario: typeof scenarios[number]) {
@@ -371,7 +391,16 @@ export default function OnePageDemo() {
             <h2>Compare RANDOM and METIS visually</h2>
             <p>Benchmark measures query behavior for the same material across modes. Topology measures partition quality before the query runs.</p>
           </div>
-          <button className="secondary" onClick={() => runAction(() => apiPost<BenchmarkResponse>("/api/benchmark/run"))} disabled={running}><BarChart3 size={16} />Run Benchmark</button>
+          <button className="secondary" onClick={runBenchmark} disabled={running}><BarChart3 size={16} />{benchmarkStatus === "running" ? "Running..." : "Run Benchmark"}</button>
+        </div>
+        <div className={`benchmark-status ${benchmarkStatus}`}>
+          <strong>
+            {benchmarkStatus === "running" && "Benchmark is running 12 comparable queries..."}
+            {benchmarkStatus === "done" && `Benchmark complete: ${benchmarkRows.length} result rows${benchmarkRanAt ? ` at ${benchmarkRanAt}` : ""}.`}
+            {benchmarkStatus === "failed" && "Benchmark failed. Check the error message above."}
+            {benchmarkStatus === "idle" && "Click Run Benchmark to execute Steel, Lithium, and Palladium across all 4 mode combinations."}
+          </strong>
+          <p>It runs RANDOM+NAIVE, RANDOM+OPTIMIZED, METIS+NAIVE, and METIS+OPTIMIZED for each material, then updates the charts and table below.</p>
         </div>
         <div className="insight-grid">
           <div className="insight-card">
@@ -404,7 +433,14 @@ export default function OnePageDemo() {
           <Activity size={18} />
           <p><b>Demo takeaway:</b> NAIVE luôn query cả 4 shards. RANDOM+OPTIMIZED có thể giống RANDOM+NAIVE nếu material bị replicate ở đủ 4 shards. Điểm chính cần nhìn là RANDOM+OPTIMIZED so với METIS+OPTIMIZED cùng một material.</p>
         </div>
-        <table className="benchmark-table" style={{ marginTop: 16 }}>
+        <div className="table-heading">
+          <div>
+            <h3>Benchmark Results</h3>
+            <p>Same material, different routing and partition modes. Use this table when explaining why NAIVE modes can look similar.</p>
+          </div>
+          <span className="badge green">{benchmarkRows.length} rows</span>
+        </div>
+        <table className="benchmark-table">
           <thead><tr><th>Material</th><th>Partition</th><th>Mode</th><th>Distributed Cost</th><th>Runtime</th><th>Visited</th><th>Pruned</th><th>Factories</th></tr></thead>
           <tbody>
             {benchmarkRows.slice(0, 12).map((row) => (

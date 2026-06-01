@@ -415,6 +415,53 @@ button.scenario-button small {
   font-weight: 700;
 }
 
+.benchmark-status {
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fbfcfe;
+}
+
+.benchmark-status p {
+  margin: 4px 0 0;
+}
+
+.benchmark-status.running {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: var(--blue);
+}
+
+.benchmark-status.done {
+  border-color: #99d5ca;
+  background: #e9fbf7;
+  color: var(--green);
+}
+
+.benchmark-status.failed {
+  border-color: #f3b6b0;
+  background: #fff0ef;
+  color: var(--red);
+}
+
+.table-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0 10px;
+}
+
+.table-heading h3,
+.table-heading p {
+  margin: 0;
+}
+
+.table-heading p {
+  margin-top: 4px;
+}
+
 .error-state {
   border-color: #f3b6b0;
   background: #fff7f6;
@@ -424,7 +471,7 @@ button.scenario-button small {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
-  align-items: end;
+  align-items: flex-end;
 }
 
 label {
