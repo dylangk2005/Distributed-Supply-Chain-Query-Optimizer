@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 OUTPUT_DIR = ROOT / "output"
+AFFINITY_CLUSTERS = 5
 
 COMMON = ["Steel", "Aluminum", "Copper", "Plastic Resin", "Silicon"]
 MEDIUM = [
@@ -52,7 +53,7 @@ def weighted_materials(rng: random.Random, materials: list[dict], count: int, af
             weights.append(12)
         elif item["frequencyGroup"] == "MEDIUM":
             material_cluster = item["cluster"]
-            weights.append(8 if material_cluster == affinity_cluster else 2 if material_cluster == (affinity_cluster + 1) % 4 else 0)
+            weights.append(8 if material_cluster == affinity_cluster else 2 if material_cluster == (affinity_cluster + 1) % AFFINITY_CLUSTERS else 0)
         else:
             weights.append(5 if item["cluster"] == affinity_cluster else 0)
     chosen = {}
@@ -77,11 +78,11 @@ def main() -> None:
 
     materials = []
     for index, name in enumerate(COMMON):
-        materials.append({"materialId": material_id(name), "name": name, "riskLevel": "MEDIUM", "frequencyGroup": "COMMON", "cluster": index % 4})
+        materials.append({"materialId": material_id(name), "name": name, "riskLevel": "MEDIUM", "frequencyGroup": "COMMON", "cluster": index % AFFINITY_CLUSTERS})
     for index, name in enumerate(MEDIUM):
-        materials.append({"materialId": material_id(name), "name": name, "riskLevel": "HIGH", "frequencyGroup": "MEDIUM", "cluster": index % 4})
+        materials.append({"materialId": material_id(name), "name": name, "riskLevel": "HIGH", "frequencyGroup": "MEDIUM", "cluster": index % AFFINITY_CLUSTERS})
     for index, name in enumerate(RARE):
-        materials.append({"materialId": material_id(name), "name": name, "riskLevel": "HIGH", "frequencyGroup": "RARE", "cluster": index % 4})
+        materials.append({"materialId": material_id(name), "name": name, "riskLevel": "HIGH", "frequencyGroup": "RARE", "cluster": index % AFFINITY_CLUSTERS})
     materials = materials[: config["rawMaterialCount"]]
 
     nodes: list[dict] = []
@@ -94,7 +95,7 @@ def main() -> None:
         code = region_code(region)
         for local_index in range(1, region_count + 1):
             global_factory_index += 1
-            affinity_cluster = (global_factory_index - 1) % 4
+            affinity_cluster = (global_factory_index - 1) % AFFINITY_CLUSTERS
             factory_id = f"F_{code}_{local_index:04d}"
             factory_name = f"{code} Precision Factory {local_index:04d}"
             risk_score = round(rng.uniform(0.1, 0.95), 2)

@@ -36,7 +36,7 @@ const scenarios = [
   { label: "Best pruning", materialName: "Palladium", partitionMode: "METIS", queryMode: "OPTIMIZED" }
 ];
 
-const allShards = ["shard_1", "shard_2", "shard_3", "shard_4"];
+const allShards = ["shard_1", "shard_2", "shard_3", "shard_4", "shard_5"];
 
 export default function QueryPage() {
   const [materialName, setMaterialName] = useState("Lithium");

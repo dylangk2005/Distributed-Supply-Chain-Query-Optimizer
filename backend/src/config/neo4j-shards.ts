@@ -4,7 +4,7 @@ import { ShardConfig } from "../types/shard";
 const user = process.env.NEO4J_USER ?? "neo4j";
 const password = process.env.NEO4J_PASSWORD ?? "password123";
 
-export const shardConfigs: ShardConfig[] = [1, 2, 3, 4].map((index) => ({
+export const shardConfigs: ShardConfig[] = [1, 2, 3, 4, 5].map((index) => ({
   id: `shard_${index}`,
   uri: process.env[`NEO4J_SHARD_${index}_URI`] ?? `bolt://localhost:768${index}`
 }));

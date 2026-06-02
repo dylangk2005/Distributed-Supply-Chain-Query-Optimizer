@@ -15,12 +15,12 @@ services:
   neo4j-shard-1:
     image: neo4j:5
     container_name: neo4j-shard-1
-    mem_limit: 1200m
+    mem_limit: 900m
     environment:
       NEO4J_AUTH: neo4j/password123
-      NEO4J_server_memory_heap_initial__size: 256m
-      NEO4J_server_memory_heap_max__size: 512m
-      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_server_memory_heap_initial__size: 192m
+      NEO4J_server_memory_heap_max__size: 384m
+      NEO4J_server_memory_pagecache_size: 192m
     ports:
       - "7471:7474"
       - "7681:7687"
@@ -30,12 +30,12 @@ services:
   neo4j-shard-2:
     image: neo4j:5
     container_name: neo4j-shard-2
-    mem_limit: 1200m
+    mem_limit: 900m
     environment:
       NEO4J_AUTH: neo4j/password123
-      NEO4J_server_memory_heap_initial__size: 256m
-      NEO4J_server_memory_heap_max__size: 512m
-      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_server_memory_heap_initial__size: 192m
+      NEO4J_server_memory_heap_max__size: 384m
+      NEO4J_server_memory_pagecache_size: 192m
     ports:
       - "7472:7474"
       - "7682:7687"
@@ -45,12 +45,12 @@ services:
   neo4j-shard-3:
     image: neo4j:5
     container_name: neo4j-shard-3
-    mem_limit: 1200m
+    mem_limit: 900m
     environment:
       NEO4J_AUTH: neo4j/password123
-      NEO4J_server_memory_heap_initial__size: 256m
-      NEO4J_server_memory_heap_max__size: 512m
-      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_server_memory_heap_initial__size: 192m
+      NEO4J_server_memory_heap_max__size: 384m
+      NEO4J_server_memory_pagecache_size: 192m
     ports:
       - "7473:7474"
       - "7683:7687"
@@ -60,17 +60,32 @@ services:
   neo4j-shard-4:
     image: neo4j:5
     container_name: neo4j-shard-4
-    mem_limit: 1200m
+    mem_limit: 900m
     environment:
       NEO4J_AUTH: neo4j/password123
-      NEO4J_server_memory_heap_initial__size: 256m
-      NEO4J_server_memory_heap_max__size: 512m
-      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_server_memory_heap_initial__size: 192m
+      NEO4J_server_memory_heap_max__size: 384m
+      NEO4J_server_memory_pagecache_size: 192m
     ports:
       - "7474:7474"
       - "7684:7687"
     volumes:
       - neo4j_shard_4_data:/data
+
+  neo4j-shard-5:
+    image: neo4j:5
+    container_name: neo4j-shard-5
+    mem_limit: 900m
+    environment:
+      NEO4J_AUTH: neo4j/password123
+      NEO4J_server_memory_heap_initial__size: 192m
+      NEO4J_server_memory_heap_max__size: 384m
+      NEO4J_server_memory_pagecache_size: 192m
+    ports:
+      - "7475:7474"
+      - "7685:7687"
+    volumes:
+      - neo4j_shard_5_data:/data
 
   backend:
     build:
@@ -90,6 +105,7 @@ services:
       NEO4J_SHARD_2_URI: bolt://neo4j-shard-2:7687
       NEO4J_SHARD_3_URI: bolt://neo4j-shard-3:7687
       NEO4J_SHARD_4_URI: bolt://neo4j-shard-4:7687
+      NEO4J_SHARD_5_URI: bolt://neo4j-shard-5:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: password123
     depends_on:
@@ -98,6 +114,7 @@ services:
       - neo4j-shard-2
       - neo4j-shard-3
       - neo4j-shard-4
+      - neo4j-shard-5
 
   frontend:
     build: ./frontend
@@ -141,6 +158,7 @@ services:
       NEO4J_SHARD_2_URI: bolt://neo4j-shard-2:7687
       NEO4J_SHARD_3_URI: bolt://neo4j-shard-3:7687
       NEO4J_SHARD_4_URI: bolt://neo4j-shard-4:7687
+      NEO4J_SHARD_5_URI: bolt://neo4j-shard-5:7687
     volumes:
       - ./generator/output:/app/generator-output
       - ./partitioner/output:/app/partitioner-output
@@ -150,6 +168,7 @@ services:
       - neo4j-shard-2
       - neo4j-shard-3
       - neo4j-shard-4
+      - neo4j-shard-5
     profiles:
       - tools
 
@@ -159,3 +178,4 @@ volumes:
   neo4j_shard_2_data:
   neo4j_shard_3_data:
   neo4j_shard_4_data:
+  neo4j_shard_5_data:
