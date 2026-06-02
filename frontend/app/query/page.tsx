@@ -14,6 +14,8 @@ type QueryResponse = {
     steps: string[];
     visitedShards: string[];
     prunedShards: string[];
+    failedShards: Array<{ shardId: string; error: string }>;
+    partialResult: boolean;
     bfsLevels: Array<{ level: number; nodeType: string; count: number }>;
     cypherQuery: string;
     cypherParams: Record<string, string>;
@@ -26,6 +28,7 @@ type QueryResponse = {
     estimatedDistributedCostMs: number;
     visitedShardCount: number;
     prunedShardCount: number;
+    failedShardCount: number;
     affectedFactoryCount: number;
   };
 };
@@ -125,6 +128,7 @@ export default function QueryPage() {
             <div className="card"><div className="metric">{result.metrics.executionTimeMs}ms</div><p>Runtime</p></div>
             <div className="card"><div className="metric">{result.metrics.visitedShardCount}</div><p>Visited shards</p></div>
             <div className="card"><div className="metric">{result.metrics.prunedShardCount}</div><p>Pruned shards</p></div>
+            <div className="card"><div className="metric">{result.metrics.failedShardCount}</div><p>Failed shards</p></div>
           </div>
           <section className="panel" style={{ marginTop: 16 }}>
             <span className="section-kicker">Deliverable: Execution Plan</span>
@@ -132,10 +136,16 @@ export default function QueryPage() {
             <p>{result.executionPlan.reason}</p>
             <div className="shard-grid">
               {allShards.map((shard) => {
-                const status = result.executionPlan.visitedShards.includes(shard) ? "visited" : result.executionPlan.prunedShards.includes(shard) ? "pruned" : "";
+                const status = result.executionPlan.failedShards.some((failed) => failed.shardId === shard) ? "failed" : result.executionPlan.visitedShards.includes(shard) ? "visited" : result.executionPlan.prunedShards.includes(shard) ? "pruned" : "";
                 return <div className={`shard-box ${status}`} key={shard}><strong>{shard}</strong><p>{status || "idle"}</p></div>;
               })}
             </div>
+            {result.executionPlan.partialResult && (
+              <div className="failure-alert">
+                <strong>Partial result</strong>
+                <p>{result.executionPlan.failedShards.map((failed) => failed.shardId).join(", ")} failed during this query.</p>
+              </div>
+            )}
             <div className="execution-flow">
               {result.executionPlan.steps.map((step) => <span className="flow-step" key={step}>{step}</span>)}
             </div>

@@ -8,6 +8,8 @@ type Plan = {
   steps: string[];
   visitedShards: string[];
   prunedShards: string[];
+  failedShards?: Array<{ shardId: string; error: string }>;
+  partialResult?: boolean;
   bfsLevels: Array<{ level: number; nodeType: string; count: number }>;
   cypherQuery?: string;
   cypherParams?: Record<string, string>;
@@ -44,6 +46,12 @@ export default function ExecutionPlanPage() {
         </div>
       </div>
       {plan.reason && <section className="takeaway" style={{ marginBottom: 16 }}><p><b>Routing reason:</b> {plan.reason}</p></section>}
+      {plan.partialResult && (
+        <section className="failure-alert">
+          <strong>Partial result</strong>
+          <p>{(plan.failedShards ?? []).map((failed) => failed.shardId).join(", ")} failed during the query.</p>
+        </section>
+      )}
       <div className="steps">
         {plan.steps.map((step, index) => (
           <div className="step" key={step}>

@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { benchmarkRoute } from "./routes/benchmark.route";
 import { demoRoute } from "./routes/demo.route";
 import { factoryRoute } from "./routes/factory.route";
+import { failureRoute } from "./routes/failure.route";
 import { materialDirectoryRoute, materialRoute } from "./routes/material.route";
 import { queryRoute } from "./routes/query.route";
 import { topologyRoute } from "./routes/topology.route";
@@ -26,6 +27,7 @@ app.use("/api/material-directory", materialDirectoryRoute);
 app.use("/api/topology", topologyRoute);
 app.use("/api/benchmark", benchmarkRoute);
 app.use("/api/factories", factoryRoute);
+app.use("/api/failure", failureRoute);
 app.use("/api/demo", demoRoute);
 
 // Middleware xử lý lỗi tập trung để route/service chỉ cần throw error.

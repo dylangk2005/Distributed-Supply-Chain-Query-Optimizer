@@ -9,6 +9,7 @@ export class ExecutionPlanService {
     materialName: string;
     visitedShards: string[];
     prunedShards: string[];
+    failedShards: Array<{ shardId: string; error: string }>;
     bfsCounts: Record<string, number>;
     cypherQuery: string;
     cypherParams: Record<string, string>;
@@ -28,11 +29,14 @@ export class ExecutionPlanService {
         "Coordinator: material_directory lookup",
         "Coordinator: shard pruning",
         "Graph: distributed BFS traversal in visited Neo4j shards",
+        "Coordinator: shard failure collection",
         "Relational: join factory_metadata in PostgreSQL",
         "Document: lookup supply_chain_documents JSON"
       ],
       visitedShards: input.visitedShards,
       prunedShards: input.prunedShards,
+      failedShards: input.failedShards,
+      partialResult: input.failedShards.length > 0,
       bfsLevels: names.map((nodeType, level) => ({
         level,
         nodeType,

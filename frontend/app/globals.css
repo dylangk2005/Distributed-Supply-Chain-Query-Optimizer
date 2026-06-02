@@ -552,6 +552,135 @@ button.scenario-button small {
   color: var(--red);
 }
 
+.failure-sim-panel {
+  margin-top: 16px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fffaf3;
+}
+
+.failure-sim-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.failure-sim-heading h3,
+.failure-sim-heading p {
+  margin: 0;
+}
+
+.failure-sim-heading p {
+  margin-top: 4px;
+}
+
+.failure-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.failure-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.failure-toggle input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+}
+
+.failure-toggle span {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.failure-toggle.selected {
+  border-color: #f59e0b;
+  background: #fff7ed;
+}
+
+.failure-toggle.down {
+  border-color: #f3b6b0;
+  background: #fff0ef;
+}
+
+.failure-toggle.down strong,
+.failure-toggle.down span {
+  color: var(--red);
+}
+
+.failure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.failure-status {
+  margin: 10px 0 0;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
+
+.failure-alert,
+.failed-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfe;
+}
+
+.failure-alert p {
+  margin: 4px 0 0;
+}
+
+.failure-alert {
+  margin-top: 16px;
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: var(--amber);
+}
+
+.failure-alert p {
+  color: var(--amber);
+}
+
+.failed-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.failed-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  border-color: #f3b6b0;
+  background: #fff7f6;
+}
+
+.failed-row strong {
+  color: var(--red);
+}
+
+.failed-row span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .table-heading {
   display: flex;
   align-items: flex-end;
@@ -721,6 +850,12 @@ label {
   color: var(--red);
 }
 
+.shard-box.failed {
+  border-color: #f59e0b;
+  background: #fff7ed;
+  color: var(--amber);
+}
+
 .empty-state {
   border: 1px dashed var(--line);
   border-radius: 8px;
@@ -774,10 +909,27 @@ label {
     grid-template-columns: 1fr;
   }
 
+  .failed-row {
+    grid-template-columns: 1fr;
+  }
+
+  .failure-sim-heading,
+  .failure-actions {
+    display: grid;
+  }
+
+  .failure-toggle-grid {
+    grid-template-columns: 1fr;
+  }
+
   button,
   select,
   input {
     width: 100%;
+  }
+
+  .failure-toggle input {
+    width: 16px;
   }
 
   .segmented button,

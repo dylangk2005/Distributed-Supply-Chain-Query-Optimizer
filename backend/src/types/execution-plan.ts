@@ -14,6 +14,8 @@ export interface ExecutionPlan {
   steps: string[];
   visitedShards: string[];
   prunedShards: string[];
+  failedShards: Array<{ shardId: string; error: string }>;
+  partialResult: boolean;
   bfsLevels: BfsLevel[];
   cypherQuery: string;
   cypherParams: Record<string, string>;

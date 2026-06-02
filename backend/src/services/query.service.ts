@@ -2,6 +2,7 @@ import { shardDrivers } from "../config/neo4j-shards";
 import { QueryRequest } from "../types/query";
 import { ExecutionPlanService } from "./execution-plan.service";
 import { FactoryEnrichmentService } from "./factory-enrichment.service";
+import { FailureService } from "./failure.service";
 import { ShardRouterService } from "./shard-router.service";
 
 const FACTORY_QUERY = `
@@ -45,6 +46,7 @@ function numberValue(value: unknown): number {
 export class QueryService {
   private router = new ShardRouterService();
   private enrichment = new FactoryEnrichmentService();
+  private failure = new FailureService();
   private plans = new ExecutionPlanService();
 
   async run(request: QueryRequest) {
@@ -55,13 +57,23 @@ export class QueryService {
     const route = await this.router.route(request.partitionMode, request.queryMode, request.materialName);
     const factoryIds = new Set<string>();
     const bfsCounts: Record<string, number> = { RawMaterial: 0, Component: 0, Part: 0, Product: 0, Factory: 0 };
+    const failedShards: Array<{ shardId: string; error: string }> = [];
 
-    // 2. Chạy các shard song song để mô phỏng distributed execution thay vì query từng shard tuần tự.
-    const shardResults = await Promise.all(route.visitedShards.map((shardId) => this.queryShard(shardId, request)));
-    for (const result of shardResults) {
-      result.factoryIds.forEach((factoryId) => factoryIds.add(factoryId));
-      for (const key of Object.keys(bfsCounts)) {
-        bfsCounts[key] += result.bfsCounts[key] ?? 0;
+    // 2. Chạy các shard song song. allSettled giúp execution plan ghi nhận shard bị lỗi
+    // thay vì làm toàn bộ distributed query biến mất trong một lỗi chung.
+    const shardResults = await Promise.allSettled(route.visitedShards.map((shardId) => this.queryShard(shardId, request)));
+    for (const [index, result] of shardResults.entries()) {
+      const shardId = route.visitedShards[index];
+      if (result.status === "fulfilled") {
+        result.value.factoryIds.forEach((factoryId) => factoryIds.add(factoryId));
+        for (const key of Object.keys(bfsCounts)) {
+          bfsCounts[key] += result.value.bfsCounts[key] ?? 0;
+        }
+      } else {
+        failedShards.push({
+          shardId,
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason)
+        });
       }
     }
 
@@ -79,6 +91,7 @@ export class QueryService {
       materialName: request.materialName,
       visitedShards: route.visitedShards,
       prunedShards: route.prunedShards,
+      failedShards,
       bfsCounts,
       cypherQuery: FACTORY_QUERY.trim(),
       cypherParams,
@@ -112,6 +125,7 @@ export class QueryService {
         estimatedDistributedCostMs,
         visitedShardCount: route.visitedShards.length,
         prunedShardCount: route.prunedShards.length,
+        failedShardCount: failedShards.length,
         affectedFactoryCount: affectedFactories.length
       }
     };
@@ -119,6 +133,10 @@ export class QueryService {
 
   private async queryShard(shardId: string, request: QueryRequest) {
     // Mỗi shard tự chạy local Cypher traversal. Backend chỉ merge kết quả sau khi shard trả về.
+    if (this.failure.isDown(shardId)) {
+      throw new Error("Simulated shard failure");
+    }
+
     const session = shardDrivers[shardId].session();
     const params = { materialName: request.materialName, partitionMode: request.partitionMode };
     const bfsCounts: Record<string, number> = { RawMaterial: 0, Component: 0, Part: 0, Product: 0, Factory: 0 };

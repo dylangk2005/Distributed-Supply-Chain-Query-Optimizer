@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BarChart3, Boxes, Database, GitBranch, Layers3, Play, RefreshCw, RotateCcw, Route, Search } from "lucide-react";
+import { Activity, BarChart3, Boxes, Database, GitBranch, Layers3, Play, Power, PowerOff, RefreshCw, RotateCcw, Route, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "./api";
 
@@ -22,6 +22,8 @@ type QueryResponse = {
     steps: string[];
     visitedShards: string[];
     prunedShards: string[];
+    failedShards: Array<{ shardId: string; error: string }>;
+    partialResult: boolean;
     bfsLevels: Array<{ level?: number; nodeType: string; count: number }>;
     cypherQuery: string;
     cypherParams: Record<string, string>;
@@ -29,7 +31,7 @@ type QueryResponse = {
     directoryParams?: Record<string, string>;
     reason: string;
   };
-  metrics: { executionTimeMs: number; estimatedDistributedCostMs: number; visitedShardCount: number; prunedShardCount: number; affectedFactoryCount: number };
+  metrics: { executionTimeMs: number; estimatedDistributedCostMs: number; visitedShardCount: number; prunedShardCount: number; failedShardCount: number; affectedFactoryCount: number };
 };
 type Log = {
   queryId: string;
@@ -72,6 +74,9 @@ type MaterialDirectoryRow = {
   shardId: string;
   factoryCount: number;
   componentCount: number;
+};
+type FailureState = {
+  downShards: string[];
 };
 
 const allShards = ["shard_1", "shard_2", "shard_3", "shard_4", "shard_5"];
@@ -149,6 +154,8 @@ export default function OnePageDemo() {
   const [directoryMode, setDirectoryMode] = useState<"RANDOM" | "METIS">("METIS");
   const [partitionMode, setPartitionMode] = useState("METIS");
   const [queryMode, setQueryMode] = useState("OPTIMIZED");
+  const [downShards, setDownShards] = useState<string[]>([]);
+  const [selectedFailureShards, setSelectedFailureShards] = useState<string[]>(["shard_5"]);
   const [neo4jMode, setNeo4jMode] = useState("ALL");
   const [busy, setBusy] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -156,12 +163,13 @@ export default function OnePageDemo() {
 
   async function refresh() {
     // Lấy tất cả dữ liệu dashboard cùng lúc để trang chính luôn đồng bộ sau mỗi action.
-    const [demoState, benchmarkLogs, topologyData, materialData, directoryData] = await Promise.allSettled([
+    const [demoState, benchmarkLogs, topologyData, materialData, directoryData, failureData] = await Promise.allSettled([
       apiGet<DemoState>("/api/demo/status"),
       apiGet<Log[]>("/api/benchmark"),
       apiGet<Record<string, Metrics>>("/api/topology"),
       apiGet<MaterialSummary[]>("/api/materials"),
-      apiGet<MaterialDirectoryRow[]>(`/api/material-directory?partitionMode=${directoryMode}`)
+      apiGet<MaterialDirectoryRow[]>(`/api/material-directory?partitionMode=${directoryMode}`),
+      apiGet<FailureState>("/api/failure")
     ]);
     if (demoState.status === "fulfilled") setDemo(demoState.value);
     if (benchmarkLogs.status === "fulfilled") setLogs(benchmarkLogs.value);
@@ -173,6 +181,7 @@ export default function OnePageDemo() {
       }
     }
     if (directoryData.status === "fulfilled") setDirectoryRows(directoryData.value);
+    if (failureData.status === "fulfilled") setDownShards(failureData.value.downShards);
   }
 
   async function runAction(fn: () => Promise<unknown>) {
@@ -204,6 +213,27 @@ export default function OnePageDemo() {
 
   async function runQuery() {
     await runAction(() => apiPost<QueryResponse>("/api/query", { materialName, partitionMode, queryMode }));
+  }
+
+  function toggleFailureShard(shardId: string) {
+    setSelectedFailureShards((current) =>
+      current.includes(shardId) ? current.filter((item) => item !== shardId) : [...current, shardId]
+    );
+  }
+
+  async function updateFailureState(action: "down" | "up" | "recover-all") {
+    setBusy(true);
+    setError("");
+    try {
+      const body = action === "recover-all" ? undefined : { shardIds: selectedFailureShards };
+      const result = await apiPost<FailureState>(`/api/failure/${action}`, body);
+      setDownShards(result.downShards);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failure simulation action failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function runBenchmark() {
@@ -409,6 +439,34 @@ export default function OnePageDemo() {
           </label>
           <button onClick={runQuery} disabled={running}><Search size={16} />Run Query</button>
         </div>
+        <div className="failure-sim-panel">
+          <div className="failure-sim-heading">
+            <div>
+              <h3>Failure Simulation</h3>
+              <p>Select one or more shards, turn them off logically, then run the same query to see failed shards in the execution plan.</p>
+            </div>
+            <span className={`badge ${downShards.length ? "amber" : "green"}`}>{downShards.length ? `${downShards.length} down` : "all shards up"}</span>
+          </div>
+          <div className="failure-toggle-grid">
+            {allShards.map((shard) => {
+              const selected = selectedFailureShards.includes(shard);
+              const down = downShards.includes(shard);
+              return (
+                <label className={`failure-toggle ${selected ? "selected" : ""} ${down ? "down" : ""}`} key={shard}>
+                  <input type="checkbox" checked={selected} onChange={() => toggleFailureShard(shard)} disabled={running} />
+                  <strong>{shard}</strong>
+                  <span>{down ? "simulated down" : "up"}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="failure-actions">
+            <button className="amber" onClick={() => updateFailureState("down")} disabled={running || selectedFailureShards.length === 0}><PowerOff size={16} />Turn Off Selected</button>
+            <button className="secondary" onClick={() => updateFailureState("up")} disabled={running || selectedFailureShards.length === 0}><Power size={16} />Turn On Selected</button>
+            <button className="secondary" onClick={() => updateFailureState("recover-all")} disabled={running || downShards.length === 0}><RefreshCw size={16} />Recover All</button>
+          </div>
+          <p className="failure-status">Simulated down shards: {downShards.length ? downShards.join(", ") : "none"}</p>
+        </div>
         <div className="query-preview">
           <h3>Cypher shortage query</h3>
           <pre className="query-code">{queryResult?.executionPlan.cypherQuery ?? defaultCypherQuery()}</pre>
@@ -420,6 +478,8 @@ export default function OnePageDemo() {
             <MetricCard label="Actual Runtime" value={`${queryResult.metrics.executionTimeMs}ms`} />
             <MetricCard label="Visited Shards" value={queryResult.metrics.visitedShardCount} />
             <MetricCard label="Pruned Shards" value={queryResult.metrics.prunedShardCount} />
+            <MetricCard label="Failed Shards" value={queryResult.metrics.failedShardCount} />
+            <MetricCard label="Affected Factories" value={queryResult.metrics.affectedFactoryCount} />
           </div>
         ) : <div className="empty-state"><strong>No query yet</strong><p>Finish the prepare steps, then run Best Pruning or choose any raw material from the selector.</p></div>}
       </section>
@@ -443,10 +503,16 @@ export default function OnePageDemo() {
             </div>
             <div className="shard-grid">
               {allShards.map((shard) => {
-                const status = queryResult.executionPlan.visitedShards.includes(shard) ? "visited" : queryResult.executionPlan.prunedShards.includes(shard) ? "pruned" : "";
+                const status = queryResult.executionPlan.failedShards.some((failed) => failed.shardId === shard) ? "failed" : queryResult.executionPlan.visitedShards.includes(shard) ? "visited" : queryResult.executionPlan.prunedShards.includes(shard) ? "pruned" : "";
                 return <div className={`shard-box ${status}`} key={shard}><strong>{shard}</strong><p>{status || "idle"}</p></div>;
               })}
             </div>
+            {queryResult.executionPlan.partialResult && (
+              <div className="failure-alert">
+                <strong>Partial result: one or more visited shards were unavailable.</strong>
+                <p>The coordinator returned results from healthy shards and recorded the failed shard(s) in the execution plan.</p>
+              </div>
+            )}
             <section className="deliverable-panel">
               <div>
                 <h3>Pruning reason</h3>
@@ -463,6 +529,19 @@ export default function OnePageDemo() {
                   </div>
                 ))}
               </div>
+              {queryResult.executionPlan.failedShards.length > 0 && (
+                <div>
+                  <h4>Failed shard details</h4>
+                  <div className="failed-list">
+                    {queryResult.executionPlan.failedShards.map((failed) => (
+                      <div className="failed-row" key={failed.shardId}>
+                        <strong>{failed.shardId}</strong>
+                        <span>{failed.error}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="query-text-grid">
                 <div>
                   <h4>Cypher traversal query</h4>
