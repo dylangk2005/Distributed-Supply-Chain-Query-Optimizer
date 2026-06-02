@@ -341,4 +341,3 @@ Main generated files:
 - The Material Directory is a routing/pruning layer that tells the optimizer which shards should be visited.
 - Vertex-cut behavior is represented at the routing/material-placement level, not as a full vertex-cut algorithm.
 
-```
