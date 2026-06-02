@@ -17,6 +17,8 @@ export class ExecutionPlanService {
     reason: string;
   }): ExecutionPlan {
     const names = ["RawMaterial", "Component", "Part", "Product", "Factory"];
+
+    // Gom tất cả thông tin giải thích query vào một object để frontend hiển thị như execution plan.
     return {
       queryId: input.queryId,
       partitionMode: input.partitionMode,
@@ -55,6 +57,7 @@ export class ExecutionPlanService {
     executionTimeMs: number;
     executionPlan: ExecutionPlan;
   }) {
+    // Lưu execution plan để benchmark và lịch sử query có thể đọc lại sau này.
     await pool.query(
       `INSERT INTO query_execution_logs
        (query_id, partition_mode, query_mode, material_name, visited_shards, pruned_shards,

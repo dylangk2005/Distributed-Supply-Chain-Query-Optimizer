@@ -14,5 +14,4 @@ export interface DemoState {
   steps: DemoStep[];
   logs: string[];
   lastError?: string;
-  lastSampleQuery?: unknown;
 }

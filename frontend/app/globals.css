@@ -400,7 +400,6 @@ button.scenario-button small {
   color: var(--green);
 }
 
-.insight-grid,
 .plan-summary-grid,
 .query-text-grid {
   display: grid;
@@ -408,11 +407,6 @@ button.scenario-button small {
   gap: 12px;
 }
 
-.insight-grid {
-  margin-bottom: 18px;
-}
-
-.insight-card,
 .deliverable-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -420,9 +414,7 @@ button.scenario-button small {
   padding: 14px;
 }
 
-.insight-card p,
-.deliverable-panel p,
-.topology-heading p {
+.deliverable-panel p {
   margin: 6px 0 0;
 }
 
@@ -433,13 +425,8 @@ button.scenario-button small {
 }
 
 .deliverable-panel h3,
-.deliverable-panel h4,
-.topology-heading h3 {
+.deliverable-panel h4 {
   margin: 4px 0 0;
-}
-
-.topology-heading {
-  margin: 8px 0 14px;
 }
 
 .query-code {
@@ -659,26 +646,6 @@ label {
 
 .status-dot.failed {
   background: var(--red);
-}
-
-.stepper {
-  display: grid;
-  gap: 12px;
-}
-
-.demo-step {
-  display: grid;
-  grid-template-columns: 28px 1fr auto;
-  gap: 12px;
-  align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px;
-  background: var(--surface);
-}
-
-.demo-step strong {
-  display: block;
 }
 
 .log-panel {

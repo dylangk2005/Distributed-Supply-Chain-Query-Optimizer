@@ -50,32 +50,28 @@ export class QueryService {
   async run(request: QueryRequest) {
     const started = Date.now();
     const queryId = `Q_${Date.now()}`;
+
+    // 1. Coordinator chọn shards cần query. NAIVE sẽ broadcast, OPTIMIZED sẽ prune bằng material_directory.
     const route = await this.router.route(request.partitionMode, request.queryMode, request.materialName);
     const factoryIds = new Set<string>();
     const bfsCounts: Record<string, number> = { RawMaterial: 0, Component: 0, Part: 0, Product: 0, Factory: 0 };
 
-    for (const shardId of route.visitedShards) {
-      const driver = shardDrivers[shardId];
-      const session = driver.session();
-      try {
-        const params = { materialName: request.materialName, partitionMode: request.partitionMode };
-        const factories = await session.run(FACTORY_QUERY, params);
-        factories.records.forEach((record) => factoryIds.add(record.get("factoryId")));
-        const bfs = await session.run(BFS_QUERY, params);
-        if (bfs.records[0]) {
-          for (const key of Object.keys(bfsCounts)) {
-            bfsCounts[key] += numberValue(bfs.records[0].get(key));
-          }
-        }
-      } finally {
-        await session.close();
+    // 2. Chạy các shard song song để mô phỏng distributed execution thay vì query từng shard tuần tự.
+    const shardResults = await Promise.all(route.visitedShards.map((shardId) => this.queryShard(shardId, request)));
+    for (const result of shardResults) {
+      result.factoryIds.forEach((factoryId) => factoryIds.add(factoryId));
+      for (const key of Object.keys(bfsCounts)) {
+        bfsCounts[key] += result.bfsCounts[key] ?? 0;
       }
     }
 
+    // 3. Sau khi lấy factoryId từ graph, enrich bằng PostgreSQL metadata và JSONB document.
     const affectedFactories = await this.enrichment.enrich([...factoryIds]);
     const executionTimeMs = Date.now() - started;
     const estimatedDistributedCostMs = executionTimeMs + route.visitedShards.length * 60;
     const cypherParams = { materialName: request.materialName, partitionMode: request.partitionMode };
+
+    // 4. Execution plan là deliverable chính: visited/pruned shards, BFS levels, query text và join steps.
     const executionPlan = this.plans.build({
       queryId,
       partitionMode: request.partitionMode,
@@ -90,6 +86,8 @@ export class QueryService {
       directoryParams: request.queryMode === "OPTIMIZED" ? { partitionMode: request.partitionMode, materialName: request.materialName } : undefined,
       reason: route.reason
     });
+
+    // 5. Lưu log để benchmark page có thể đọc lại những lần query gần nhất.
     await this.plans.persist({
       queryId,
       partitionMode: request.partitionMode,
@@ -117,5 +115,27 @@ export class QueryService {
         affectedFactoryCount: affectedFactories.length
       }
     };
+  }
+
+  private async queryShard(shardId: string, request: QueryRequest) {
+    const session = shardDrivers[shardId].session();
+    const params = { materialName: request.materialName, partitionMode: request.partitionMode };
+    const bfsCounts: Record<string, number> = { RawMaterial: 0, Component: 0, Part: 0, Product: 0, Factory: 0 };
+
+    try {
+      const factories = await session.run(FACTORY_QUERY, params);
+      const factoryIds = factories.records.map((record) => String(record.get("factoryId")));
+
+      const bfs = await session.run(BFS_QUERY, params);
+      if (bfs.records[0]) {
+        for (const key of Object.keys(bfsCounts)) {
+          bfsCounts[key] = numberValue(bfs.records[0].get(key));
+        }
+      }
+
+      return { factoryIds, bfsCounts };
+    } finally {
+      await session.close();
+    }
   }
 }

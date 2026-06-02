@@ -1,6 +1,6 @@
 # Distributed Supply Chain Graph Query Optimizer
 
-Project 134: **Cypher Query Optimizer - "Supply Chain Map"**
+Project: **Cypher Query Optimizer - "Supply Chain Map"**
 
 This project simulates a distributed graph query optimizer for supply chain shortage analysis. It generates a 5-level supply chain dataset, partitions the graph into 5 Neo4j shards, uses a Material Directory to prune irrelevant shards, runs Cypher queries to find factories affected by a raw material shortage, and presents an execution plan, benchmark results, and topology analysis.
 
@@ -341,23 +341,4 @@ Main generated files:
 - The Material Directory is a routing/pruning layer that tells the optimizer which shards should be visited.
 - Vertex-cut behavior is represented at the routing/material-placement level, not as a full vertex-cut algorithm.
 
-## Grading Summary
-
-```txt
-Graph Partitioning:
-  RANDOM baseline + METIS-based factory-material partitioning.
-
-Traversal Logic:
-  Distributed BFS-style Cypher traversal across selected Neo4j shards.
-
-Multi-Model Integration:
-  Neo4j graph + PostgreSQL relational metadata + PostgreSQL JSONB documents.
-
-Topology Analysis:
-  Edge-cut ratio, material replication, expected visited shards,
-  node/edge distribution, cluster density by shard.
-
-Deliverable:
-  Execution plan with visited shards, pruned shards, BFS levels,
-  Cypher text, SQL directory lookup, and affected factories.
 ```

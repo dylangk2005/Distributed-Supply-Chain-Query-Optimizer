@@ -20,8 +20,10 @@ export class WarmupService {
     let neo4jQueries = 0;
     let directoryLookups = 0;
 
+    // Warmup chỉ chạy một lần trước demo/benchmark để giảm cold-start của PostgreSQL và Neo4j.
     for (const partitionMode of PARTITION_MODES) {
       for (const materialName of MATERIALS) {
+        // Prime material_directory lookup, dùng cho OPTIMIZED routing.
         await pool.query(
           `SELECT DISTINCT shard_id
            FROM material_directory
@@ -32,6 +34,7 @@ export class WarmupService {
         );
         directoryLookups += 1;
 
+        // Prime Bolt session, Cypher plan và index/cache page trên từng shard.
         for (const shard of shardConfigs) {
           const session = shardDrivers[shard.id].session();
           try {

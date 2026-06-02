@@ -118,7 +118,6 @@ class DemoService {
 
   async sampleQuery() {
     const result = await this.query.run({ materialName: "Palladium", partitionMode: "METIS", queryMode: "OPTIMIZED" });
-    this.state.lastSampleQuery = result;
     this.setStep("Run Demo Query", "done", `Palladium visited ${result.metrics.visitedShardCount} shard(s) and pruned ${result.metrics.prunedShardCount}.`);
     return result;
   }
@@ -144,6 +143,7 @@ class DemoService {
   }
 
   private async runSetup() {
+    // Full setup dùng cho demo nhanh: tạo data -> partition -> import -> warmup -> sample query.
     await this.generateDatasetStep();
     await this.partitionGraphStep();
     await this.buildMaterialDirectoryStep();

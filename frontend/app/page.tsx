@@ -16,7 +16,6 @@ type DemoState = {
 type QueryResponse = {
   affectedFactories: Array<{ factoryId: string; factoryName: string; region: string; riskScore: number; documentProductCount?: number }>;
   executionPlan: {
-    queryId?: string;
     queryMode: string;
     partitionMode: string;
     materialName: string;
@@ -44,8 +43,6 @@ type Log = {
   estimatedDistributedCostMs: number;
 };
 type Metrics = {
-  projectionNodes: number;
-  projectionEdges: number;
   edgeCutRatio: number;
   materialReplication: number;
   averageVisitedShardCountByMaterial: number;
@@ -66,12 +63,7 @@ type BenchmarkResponse = {
   }>;
 };
 type MaterialSummary = {
-  materialId: string;
   materialName: string;
-  randomShards: string[];
-  metisShards: string[];
-  randomReplicaCount: number;
-  metisReplicaCount: number;
 };
 type MaterialDirectoryRow = {
   materialId: string;
@@ -162,6 +154,7 @@ export default function OnePageDemo() {
   const [error, setError] = useState("");
 
   async function refresh() {
+    // Lấy tất cả dữ liệu dashboard cùng lúc để trang chính luôn đồng bộ sau mỗi action.
     const [demoState, benchmarkLogs, topologyData, materialData, directoryData] = await Promise.allSettled([
       apiGet<DemoState>("/api/demo/status"),
       apiGet<Log[]>("/api/benchmark"),
@@ -182,6 +175,7 @@ export default function OnePageDemo() {
   }
 
   async function runAction(fn: () => Promise<unknown>) {
+    // Wrapper chung cho các nút action: bật loading, lưu query result, refresh lại dashboard.
     setBusy(true);
     setError("");
     try {
@@ -642,6 +636,7 @@ RETURN DISTINCT f.factoryId AS factoryId`;
 }
 
 function groupDirectoryRows(rows: MaterialDirectoryRow[]) {
+  // Backend trả mỗi dòng theo material-shard; frontend gom lại để người dùng thấy 1 material nằm ở những shard nào.
   const byMaterial = new Map<string, { materialId: string; materialName: string; shards: string[]; factoryCount: number; componentCount: number }>();
   for (const row of rows) {
     const current = byMaterial.get(row.materialId) ?? {
