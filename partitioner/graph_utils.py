@@ -4,6 +4,13 @@ from pathlib import Path
 from typing import Any
 
 
+"""Shared graph utilities for partitioning scripts.
+
+Các partitioner dùng chung file này để đọc graph, tìm factory-subgraph,
+tạo partition payload và tính summary. Giữ logic chung ở đây giúp RANDOM,
+METIS, Material Directory và Topology dùng cùng một cách hiểu về graph.
+"""
+
 INPUT_DIR = Path("/app/input") if Path("/app/input").exists() else Path(__file__).resolve().parent.parent / "generator" / "output"
 OUTPUT_DIR = Path("/app/output") if Path("/app/output").exists() else Path(__file__).resolve().parent / "output"
 NUM_SHARDS = 5
@@ -11,15 +18,18 @@ SHARDS = [f"shard_{index}" for index in range(1, NUM_SHARDS + 1)]
 
 
 def load_json(path: Path) -> Any:
+    """Đọc JSON file với UTF-8."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def write_json(path: Path, payload: Any) -> None:
+    """Ghi JSON output có indent để dễ debug và dễ import lại."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def load_graph() -> tuple[list[dict], list[dict], list[dict]]:
+    """Load nodes, edges và raw_materials từ generator output."""
     return (
         load_json(INPUT_DIR / "nodes.json"),
         load_json(INPUT_DIR / "edges.json"),
@@ -28,12 +38,19 @@ def load_graph() -> tuple[list[dict], list[dict], list[dict]]:
 
 
 def node_maps(nodes: list[dict]) -> tuple[dict[str, dict], dict[str, str]]:
+    """Tạo lookup map để truy cập node theo id và label nhanh hơn."""
     by_id = {node["id"]: node for node in nodes}
     labels = {node["id"]: node["label"] for node in nodes}
     return by_id, labels
 
 
 def factory_subgraphs(nodes: list[dict], edges: list[dict]) -> dict[str, set[str]]:
+    """Tìm toàn bộ node thuộc về từng factory-subgraph.
+
+    BFS bắt đầu từ Factory và đi xuống Product/Part/Component/RawMaterial.
+    RawMaterial là node lá nên không expand tiếp. Kết quả dùng để đảm bảo
+    mỗi factory-subgraph được import local trong một shard.
+    """
     _, labels = node_maps(nodes)
     children: dict[str, list[str]] = defaultdict(list)
     for edge in edges:
@@ -55,6 +72,11 @@ def factory_subgraphs(nodes: list[dict], edges: list[dict]) -> dict[str, set[str
 
 
 def build_partition_payload(factory_to_shard: dict[str, int], subgraphs: dict[str, set[str]]) -> dict:
+    """Chuyển mapping factory -> shard thành payload chuẩn cho importer.
+
+    Non-material nodes có đúng một shard. RawMaterial có thể replicate ở nhiều shards,
+    nên được lưu riêng trong materialReplicaMap.
+    """
     node_partition: dict[str, str] = {}
     material_replicas: dict[str, set[str]] = defaultdict(set)
     factory_partition: dict[str, str] = {}
@@ -77,6 +99,7 @@ def build_partition_payload(factory_to_shard: dict[str, int], subgraphs: dict[st
 
 
 def factory_material_edges(nodes: list[dict], edges: list[dict]) -> list[tuple[str, str]]:
+    """Tạo factory-material projection edges dùng cho METIS và topology metrics."""
     by_id, _ = node_maps(nodes)
     subgraphs = factory_subgraphs(nodes, edges)
     output = set()
@@ -88,10 +111,12 @@ def factory_material_edges(nodes: list[dict], edges: list[dict]) -> list[tuple[s
 
 
 def shard_index(shard_id: str) -> int:
+    """Chuyển shard_1..shard_5 thành index 0..4."""
     return int(shard_id.split("_")[1]) - 1
 
 
 def summarize(payload: dict, edges: list[dict]) -> dict:
+    """Tạo summary ngắn để in ra terminal sau khi partition xong."""
     factory_counts = defaultdict(int)
     node_counts = defaultdict(int)
     for shard in payload["factoryPartitionMap"].values():

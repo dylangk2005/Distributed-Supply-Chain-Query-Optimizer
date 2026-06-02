@@ -11,9 +11,11 @@ type Metrics = {
   clusterDensityByShard: Record<string, number>;
 };
 
+// Server component đọc topology metrics đã import từ PostgreSQL.
 export default async function TopologyPage() {
   let data: Record<string, Metrics> = {};
   try {
+    // Nếu backend chưa sẵn sàng hoặc chưa import metrics, trang vẫn render empty state an toàn.
     data = await apiGet<Record<string, Metrics>>("/api/topology");
   } catch {
     data = {};

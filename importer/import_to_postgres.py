@@ -6,7 +6,14 @@ from psycopg2.extras import Json, execute_values
 from common import GENERATOR_DIR, PARTITIONER_DIR, load_json, postgres_config
 
 
+"""Import relational/document/routing data into PostgreSQL.
+
+PostgreSQL không lưu graph traversal chính. Nó lưu metadata, JSONB document,
+Material Directory, benchmark logs và topology metrics để backend join/enrich.
+"""
+
 def main() -> None:
+    """Load generated files and upsert them into PostgreSQL tables."""
     documents = load_json(GENERATOR_DIR / "supply_chain_documents.json")
     random_directory = load_json(PARTITIONER_DIR / "random_material_directory.json")
     metis_directory = load_json(PARTITIONER_DIR / "metis_material_directory.json")
@@ -15,9 +22,11 @@ def main() -> None:
 
     with psycopg2.connect(**postgres_config()) as conn:
         with conn.cursor() as cur:
+            # Bảo đảm schema có các cột mới nếu database volume đã được tạo từ version cũ.
             cur.execute("ALTER TABLE topology_metrics ADD COLUMN IF NOT EXISTS average_visited_shard_count_by_material NUMERIC(8, 4)")
             cur.execute("ALTER TABLE topology_metrics ADD COLUMN IF NOT EXISTS cluster_density_by_shard JSONB")
 
+            # factory_metadata là relational fragment dùng để enrich kết quả graph query.
             factory_rows = [
                 (
                     doc["factoryId"],
@@ -41,6 +50,7 @@ def main() -> None:
                     risk_score = EXCLUDED.risk_score
             """, factory_rows)
 
+            # supply_chain_documents lưu original nested JSON để chứng minh multi-model integration.
             document_rows = [(doc["factoryId"], Json(doc)) for doc in documents]
             execute_values(cur, """
                 INSERT INTO supply_chain_documents (factory_id, supply_chain_json)
@@ -48,6 +58,7 @@ def main() -> None:
                 ON CONFLICT (factory_id) DO UPDATE SET supply_chain_json = EXCLUDED.supply_chain_json
             """, document_rows)
 
+            # material_directory là routing table quan trọng nhất cho OPTIMIZED query.
             cur.execute("DELETE FROM material_directory")
             directory_rows = [
                 (
@@ -66,6 +77,7 @@ def main() -> None:
                 VALUES %s
             """, directory_rows)
 
+            # topology_metrics được precompute bởi partitioner để frontend so sánh RANDOM vs METIS.
             for metrics in [random_metrics, metis_metrics]:
                 cur.execute("""
                     INSERT INTO topology_metrics

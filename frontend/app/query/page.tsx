@@ -38,6 +38,7 @@ const scenarios = [
 
 const allShards = ["shard_1", "shard_2", "shard_3", "shard_4", "shard_5"];
 
+// Trang phụ cho Query Lab. Dashboard chính cũng có phần này, nhưng route này hữu ích để test query riêng.
 export default function QueryPage() {
   const [materialName, setMaterialName] = useState("Lithium");
   const [partitionMode, setPartitionMode] = useState("METIS");
@@ -47,6 +48,7 @@ export default function QueryPage() {
   const [error, setError] = useState("");
 
   async function runQuery() {
+    // Gửi query request đến backend coordinator và lưu execution plan mới nhất vào sessionStorage.
     setLoading(true);
     setError("");
     try {
@@ -61,6 +63,7 @@ export default function QueryPage() {
   }
 
   function applyScenario(scenario: typeof scenarios[number]) {
+    // Scenario buttons giúp đổi nhanh material/partition/mode theo các case demo.
     setMaterialName(scenario.materialName);
     setPartitionMode(scenario.partitionMode);
     setQueryMode(scenario.queryMode);

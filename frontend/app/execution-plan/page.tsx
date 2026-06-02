@@ -16,10 +16,12 @@ type Plan = {
   reason?: string;
 };
 
+// Trang execution plan riêng: đọc plan gần nhất đã lưu khi user chạy query.
 export default function ExecutionPlanPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
 
   useEffect(() => {
+    // Query page/dashboard lưu lastExecutionPlan vào sessionStorage để trang này có thể hiển thị lại.
     const value = sessionStorage.getItem("lastExecutionPlan");
     if (value) setPlan(JSON.parse(value));
   }, []);

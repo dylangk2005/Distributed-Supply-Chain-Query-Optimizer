@@ -133,6 +133,7 @@ const prepareSteps = [
 ];
 
 export default function OnePageDemo() {
+  // State chính của dashboard: status demo, dữ liệu directory/topology, query result và benchmark.
   const [demo, setDemo] = useState<DemoState | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
   const [topology, setTopology] = useState<Record<string, Metrics>>({});
@@ -230,6 +231,7 @@ export default function OnePageDemo() {
   }
 
   useEffect(() => {
+    // Poll backend định kỳ để step status/logs cập nhật khi user chạy prepare actions.
     refresh().catch(() => setError("Backend is not reachable. Start Docker services first."));
     const timer = window.setInterval(() => refresh().catch(() => undefined), 2500);
     return () => window.clearInterval(timer);
@@ -243,6 +245,7 @@ export default function OnePageDemo() {
   const groupedDirectoryRows = useMemo(() => groupDirectoryRows(directoryRows), [directoryRows]);
   const filteredDirectoryRows = groupedDirectoryRows.filter((row) => row.materialName.toLowerCase().includes(directorySearch.toLowerCase()));
   const benchmarkRows = useMemo(() => {
+    // Nếu vừa chạy benchmark thì dùng response mới; nếu chưa thì lấy log gần nhất từ backend.
     if (benchmark?.results?.length) return benchmark.results;
     const seen = new Set<string>();
     const rows = [];
@@ -266,6 +269,7 @@ export default function OnePageDemo() {
 
   return (
     <>
+      {/* Hero: tóm tắt hệ thống và trạng thái sẵn sàng của demo. */}
       <section className="hero app-hero">
         <div className="hero-main">
           <span className="eyebrow">5-shard distributed graph demo</span>
@@ -284,6 +288,7 @@ export default function OnePageDemo() {
 
       {error && <section className="empty-state error-state" style={{ marginBottom: 16 }}><strong>{error}</strong><p>Run the setup steps from top to bottom, then retry the action.</p></section>}
 
+      {/* Section 1: chạy pipeline chuẩn bị data theo thứ tự từ generator đến warmup. */}
       <section id="prepare-data" className="panel section-panel">
         <div className="section-heading">
           <div>
@@ -326,6 +331,7 @@ export default function OnePageDemo() {
         {showLogs && <pre className="log-panel">{demo?.logs.join("\n")}</pre>}
       </section>
 
+      {/* Section 2: bảng material -> shards, chính là dữ liệu optimizer dùng để prune. */}
       <section id="material-directory" className="panel section-panel">
         <div className="section-heading">
           <div>
@@ -363,6 +369,7 @@ export default function OnePageDemo() {
         </div>
       </section>
 
+      {/* Section 3: nơi user chọn raw material, partition mode, query mode và chạy query. */}
       <section id="query-lab" className="panel section-panel query-panel">
         <div className="section-heading">
           <div>
@@ -417,6 +424,7 @@ export default function OnePageDemo() {
         ) : <div className="empty-state"><strong>No query yet</strong><p>Finish the prepare steps, then run Best Pruning or choose any raw material from the selector.</p></div>}
       </section>
 
+      {/* Section 4: deliverable chính của đề bài, hiển thị visited/pruned shards và BFS levels. */}
       <section id="execution-plan" className="panel section-panel">
         <div className="section-heading">
           <div>
@@ -489,6 +497,7 @@ export default function OnePageDemo() {
         ) : <div className="empty-state"><strong>No execution plan yet</strong><p>Run a query in Query Lab to populate visited shards, pruned shards, BFS levels, and join steps.</p></div>}
       </section>
 
+      {/* Section 5: benchmark so sánh RANDOM/METIS và NAIVE/OPTIMIZED. */}
       <section id="benchmark" className="panel section-panel">
         <div className="section-heading">
           <div>
@@ -541,6 +550,7 @@ export default function OnePageDemo() {
         </div>
       </section>
 
+      {/* Section 6: topology metrics giải thích chất lượng partition trước khi query. */}
       <section id="topology" className="panel section-panel">
         <div className="section-heading">
           <div>

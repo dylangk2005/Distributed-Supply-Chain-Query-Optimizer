@@ -1,9 +1,11 @@
 export interface BfsLevel {
+  // level 0..4 tương ứng RawMaterial -> Component -> Part -> Product -> Factory.
   level: number;
   nodeType: string;
   count: number;
 }
 
+// Object giải thích toàn bộ quá trình query để frontend hiển thị ở Execution Plan.
 export interface ExecutionPlan {
   queryId: string;
   partitionMode: string;

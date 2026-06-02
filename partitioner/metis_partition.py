@@ -13,7 +13,19 @@ from graph_utils import (
 )
 
 
+"""METIS-based partitioning.
+
+Script này tạo factory-material projection graph rồi dùng pymetis để gom
+factories có raw material dependency giống nhau vào cùng shard. Mục tiêu là
+giảm material replication và giảm số shards cần visit khi query OPTIMIZED.
+"""
+
 def weighted_factory_material_edges(nodes: list[dict], edges: list[dict]) -> dict[tuple[str, str], int]:
+    """Tạo weighted projection edge Factory--RawMaterial.
+
+    RARE material có weight cao hơn vì ta muốn METIS gom factories dùng
+    rare material vào cùng shard để demo pruning rõ hơn.
+    """
     by_id, _ = node_maps(nodes)
     weights = {"COMMON": 1, "MEDIUM": 3, "RARE": 14}
     result: dict[tuple[str, str], int] = defaultdict(int)
@@ -26,6 +38,11 @@ def weighted_factory_material_edges(nodes: list[dict], edges: list[dict]) -> dic
 
 
 def refine_rare_material_outliers(nodes: list[dict], edges: list[dict], factory_to_shard: dict[str, int]) -> None:
+    """Hậu xử lý để kéo các rare-material outliers về majority shard.
+
+    Đây là heuristic nhỏ giúp giảm trường hợp một rare material bị rải quá nhiều shards,
+    từ đó OPTIMIZED query có thể prune tốt hơn trong demo.
+    """
     by_id, _ = node_maps(nodes)
     material_factories: dict[str, set[str]] = defaultdict(set)
     for edge in edges:
@@ -56,6 +73,7 @@ def refine_rare_material_outliers(nodes: list[dict], edges: list[dict], factory_
 
 
 def main() -> None:
+    """Build projection graph, chạy pymetis, refine kết quả và ghi metis_partition_map.json."""
     try:
         import pymetis
     except ImportError as exc:
@@ -64,6 +82,8 @@ def main() -> None:
     nodes, edges, _ = load_graph()
     projection_edges = weighted_factory_material_edges(nodes, edges)
     subgraphs = factory_subgraphs(nodes, edges)
+
+    # projection_nodes gồm cả Factory và RawMaterial; METIS partition trên graph hai phía này.
     projection_nodes = sorted({item for edge in projection_edges for item in edge})
     index = {node_id: idx for idx, node_id in enumerate(projection_nodes)}
     reverse = {idx: node_id for node_id, idx in index.items()}
@@ -77,6 +97,8 @@ def main() -> None:
     xadj = [0]
     adjncy = []
     eweights = []
+
+    # Chuyển adjacency dạng dict sang CSR arrays mà pymetis yêu cầu.
     for values in adjacency:
         for neighbor, weight in sorted(values.items()):
             adjncy.append(neighbor)
@@ -85,12 +107,14 @@ def main() -> None:
 
     edgecuts, parts = pymetis.part_graph(NUM_SHARDS, xadj=xadj, adjncy=adjncy, eweights=eweights)
     factory_to_shard = {}
+
+    # Chỉ Factory nodes quyết định shard của factory-subgraph.
     for idx, part_id in enumerate(parts):
         node_id = reverse[idx]
         if node_id.startswith("F_"):
             factory_to_shard[node_id] = int(part_id)
 
-    # Isolated factories are unlikely, but assign them deterministically if projection data is missing.
+    # Isolated factories hiếm, nhưng nếu thiếu projection data thì gán deterministic để không mất factory.
     for ordinal, factory_id in enumerate(sorted(subgraphs)):
         factory_to_shard.setdefault(factory_id, ordinal % NUM_SHARDS)
 

@@ -4,10 +4,19 @@ from collections import defaultdict
 from graph_utils import OUTPUT_DIR, load_graph, load_json, node_maps, write_json
 
 
+"""Build Material Directory for shard pruning.
+
+Material Directory là bảng raw material -> shard. Backend dùng bảng này ở
+OPTIMIZED mode để biết shard nào cần query và shard nào có thể prune.
+"""
+
 def build(mode: str, partition: dict, nodes: list[dict], edges: list[dict]) -> list[dict]:
+    """Tạo directory records cho một partition mode RANDOM hoặc METIS."""
     by_id, _ = node_maps(nodes)
     component_counts = defaultdict(int)
     factory_sets = defaultdict(set)
+
+    # Duyệt USES edges để đếm material xuất hiện ở shard nào, bao nhiêu component/factory dùng.
     for edge in edges:
         if edge["type"] == "USES":
             material_id = edge["target"]
@@ -17,6 +26,7 @@ def build(mode: str, partition: dict, nodes: list[dict], edges: list[dict]) -> l
             factory_sets[(material_id, shard_id)].add(factory_id)
 
     records = []
+    # materialReplicaMap là nguồn sự thật cho material nằm ở những shards nào.
     for material_id, shards in sorted(partition["materialReplicaMap"].items()):
         material = by_id[material_id]["properties"]
         for shard_id in shards:
@@ -32,6 +42,7 @@ def build(mode: str, partition: dict, nodes: list[dict], edges: list[dict]) -> l
 
 
 def main() -> None:
+    """Build directory cho cả RANDOM và METIS rồi ghi JSON output."""
     nodes, edges, _ = load_graph()
     random_partition = load_json(OUTPUT_DIR / "random_partition_map.json")
     metis_partition = load_json(OUTPUT_DIR / "metis_partition_map.json")
@@ -44,4 +55,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

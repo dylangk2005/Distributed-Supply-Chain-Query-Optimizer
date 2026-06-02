@@ -3,11 +3,20 @@ import random
 from pathlib import Path
 
 
+"""Generate synthetic Supply_Chain_JSON data and matching graph files.
+
+File này tạo dữ liệu đầu vào cho toàn bộ demo:
+- supply_chain_documents.json: bản document JSONB gốc.
+- nodes.json / edges.json: graph dùng để import Neo4j.
+- raw_materials.json: danh sách raw materials cho partitioner/importer.
+"""
+
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 OUTPUT_DIR = ROOT / "output"
 AFFINITY_CLUSTERS = 5
 
+# Chia raw materials thành COMMON/MEDIUM/RARE để benchmark có cả material phổ biến và material hiếm.
 COMMON = ["Steel", "Aluminum", "Copper", "Plastic Resin", "Silicon"]
 MEDIUM = [
     "Lithium", "Nickel", "Cobalt", "Rubber", "Glass Fiber", "Zinc", "Magnesium",
@@ -33,10 +42,12 @@ COMPONENTS = ["Cell Pack", "Micro Controller", "Copper Coil", "Polymer Frame", "
 
 
 def material_id(name: str) -> str:
+    """Chuẩn hóa tên material thành ID ổn định, ví dụ Palladium -> RM_PALLADIUM."""
     return "RM_" + name.upper().replace(" ", "_").replace("-", "_")
 
 
 def region_code(region: str) -> str:
+    """Map region name sang prefix ngắn để tạo factoryId dễ đọc."""
     return {
         "Hanoi": "HN",
         "Ho Chi Minh": "HCM",
@@ -47,6 +58,11 @@ def region_code(region: str) -> str:
 
 
 def weighted_materials(rng: random.Random, materials: list[dict], count: int, affinity_cluster: int) -> list[dict]:
+    """Chọn raw materials có trọng số để tạo dependency cluster cho METIS partitioning.
+
+    COMMON xuất hiện nhiều ở mọi cluster; MEDIUM/RARE thiên về affinity_cluster.
+    Nhờ vậy METIS có tín hiệu để gom factories có material dependency giống nhau.
+    """
     weights = []
     for item in materials:
         if item["frequencyGroup"] == "COMMON":
@@ -64,19 +80,23 @@ def weighted_materials(rng: random.Random, materials: list[dict], count: int, af
 
 
 def add_node(nodes: list[dict], node_id: str, label: str, properties: dict) -> None:
+    """Thêm một node graph theo format importer/partitioner dùng chung."""
     nodes.append({"id": node_id, "label": label, "properties": properties})
 
 
 def add_edge(edges: list[dict], source: str, target: str, rel_type: str, factory_id: str) -> None:
+    """Thêm một relationship và lưu factoryId để partitioner biết edge thuộc factory nào."""
     edges.append({"source": source, "target": target, "type": rel_type, "factoryId": factory_id})
 
 
 def main() -> None:
+    """Sinh toàn bộ dataset theo config.json và ghi ra generator/output."""
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     rng = random.Random(config["randomSeed"])
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     materials = []
+    # Tạo catalog raw materials trước, sau đó factory/component sẽ chọn từ catalog này.
     for index, name in enumerate(COMMON):
         materials.append({"materialId": material_id(name), "name": name, "riskLevel": "MEDIUM", "frequencyGroup": "COMMON", "cluster": index % AFFINITY_CLUSTERS})
     for index, name in enumerate(MEDIUM):
@@ -91,6 +111,7 @@ def main() -> None:
     counts = {"factory": 0, "product": 0, "part": 0, "component": 0}
 
     global_factory_index = 0
+    # Vòng lặp chính tạo Factory -> Product -> Part -> Component -> RawMaterial.
     for region, region_count in config["regionDistribution"].items():
         code = region_code(region)
         for local_index in range(1, region_count + 1):
@@ -150,6 +171,7 @@ def main() -> None:
                         supplier_tier = rng.randint(1, 3)
                         material_count = rng.randint(config["rawMaterialPerComponent"]["min"], config["rawMaterialPerComponent"]["max"])
                         component_materials = weighted_materials(rng, materials, material_count, affinity_cluster)
+                        # component_doc giữ cấu trúc document JSONB; nodes/edges giữ cấu trúc graph.
                         component_doc = {
                             "componentId": component_id,
                             "name": component_name,
@@ -173,6 +195,7 @@ def main() -> None:
             documents.append(factory_doc)
 
     for material in materials:
+        # RawMaterial node được thêm một lần vào global graph; khi import Neo4j có thể replicate theo shard.
         add_node(nodes, material["materialId"], "RawMaterial", {
             "materialId": material["materialId"],
             "name": material["name"],
@@ -186,6 +209,7 @@ def main() -> None:
         "edges.json": edges,
         "raw_materials.json": materials,
     }
+    # Ghi tất cả output để partitioner và importer dùng ở các bước sau.
     for filename, payload in outputs.items():
         (OUTPUT_DIR / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 

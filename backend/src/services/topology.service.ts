@@ -2,8 +2,11 @@ import { pool } from "../config/postgres";
 
 export class TopologyService {
   async get() {
+    // Đọc topology_metrics đã được partitioner tính trước và import vào PostgreSQL.
     const result = await pool.query("SELECT * FROM topology_metrics ORDER BY partition_mode");
     const payload: Record<string, unknown> = {};
+
+    // Chuẩn hóa key thành random/metis để frontend truy cập trực tiếp.
     for (const row of result.rows) {
       payload[row.partition_mode.toLowerCase()] = {
         projectionNodes: row.projection_nodes,

@@ -4,6 +4,12 @@ from pathlib import Path
 from typing import Any
 
 
+"""Shared importer configuration.
+
+Importer chạy được cả trong Docker (/app/...) và local workspace.
+File này gom đường dẫn input/output và config kết nối database.
+"""
+
 GENERATOR_DIR = Path(os.getenv("GENERATOR_OUTPUT_DIR", "/app/generator-output"))
 PARTITIONER_DIR = Path(os.getenv("PARTITIONER_OUTPUT_DIR", "/app/partitioner-output"))
 
@@ -14,10 +20,12 @@ if not PARTITIONER_DIR.exists():
 
 
 def load_json(path: Path) -> Any:
+    """Đọc JSON output từ generator/partitioner."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def postgres_config() -> dict:
+    """Lấy PostgreSQL config từ environment, fallback về local defaults."""
     return {
         "host": os.getenv("POSTGRES_HOST", "localhost"),
         "port": int(os.getenv("POSTGRES_PORT", "5432")),
@@ -28,6 +36,7 @@ def postgres_config() -> dict:
 
 
 def shard_uris() -> dict[str, str]:
+    """Trả URI của 5 Neo4j shards, ưu tiên env khi chạy Docker."""
     defaults = {
         "shard_1": "bolt://localhost:7681",
         "shard_2": "bolt://localhost:7682",

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import "./globals.css";
 
+// Metadata hiển thị trên browser tab và SEO cơ bản của Next.js.
 export const metadata = {
   title: "Distributed Supply Chain Graph Query Optimizer",
   description: "Distributed graph query optimizer demo"
 };
 
+// Root layout bọc toàn bộ app: top navigation + vùng content.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -13,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="shell">
           <nav className="nav">
             <Link href="/" className="brand">Distributed Supply Chain Graph Query Optimizer</Link>
+            {/* Anchor links giúp demo theo đúng thứ tự 6 phần trên dashboard. */}
             <div className="links">
               <a href="/#prepare-data">1. Prepare</a>
               <a href="/#material-directory">2. Directory</a>

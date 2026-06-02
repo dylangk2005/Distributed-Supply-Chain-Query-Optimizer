@@ -118,14 +118,17 @@ export class QueryService {
   }
 
   private async queryShard(shardId: string, request: QueryRequest) {
+    // Mỗi shard tự chạy local Cypher traversal. Backend chỉ merge kết quả sau khi shard trả về.
     const session = shardDrivers[shardId].session();
     const params = { materialName: request.materialName, partitionMode: request.partitionMode };
     const bfsCounts: Record<string, number> = { RawMaterial: 0, Component: 0, Part: 0, Product: 0, Factory: 0 };
 
     try {
+      // Query chính lấy factoryId bị ảnh hưởng bởi material shortage.
       const factories = await session.run(FACTORY_QUERY, params);
       const factoryIds = factories.records.map((record) => String(record.get("factoryId")));
 
+      // Query phụ đếm số node ở từng level để frontend hiển thị BFS-style metrics.
       const bfs = await session.run(BFS_QUERY, params);
       if (bfs.records[0]) {
         for (const key of Object.keys(bfsCounts)) {

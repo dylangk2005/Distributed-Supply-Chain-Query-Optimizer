@@ -16,15 +16,18 @@ type Log = {
   estimatedDistributedCostMs: number;
 };
 
+// Trang benchmark riêng: đọc query logs và cho phép chạy benchmark cố định.
 export default function BenchmarkPage() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(false);
 
   async function load() {
+    // Lấy các query_execution_logs mới nhất từ backend.
     setLogs(await apiGet<Log[]>("/api/benchmark"));
   }
 
   async function run() {
+    // Backend sẽ tự warmup rồi chạy các tổ hợp RANDOM/METIS x NAIVE/OPTIMIZED.
     setLoading(true);
     try {
       await apiPost("/api/benchmark/run");
@@ -35,6 +38,7 @@ export default function BenchmarkPage() {
   }
 
   useEffect(() => {
+    // Load lịch sử benchmark khi mở trang.
     load().catch(() => setLogs([]));
   }, []);
 

@@ -7,8 +7,13 @@ export class BenchmarkService {
   private warmupService = new WarmupService();
 
   async run() {
+    // Benchmark luôn warmup trước để kết quả không bị ảnh hưởng quá nhiều bởi cold-start.
     await this.warmupService.run();
+
+    // Chọn 3 materials đại diện: phổ biến, trung bình và hiếm để thấy khác biệt pruning.
     const materials = ["Steel", "Lithium", "Palladium"];
+
+    // 4 tổ hợp dùng để so sánh partitioning và query routing.
     const combos = [
       { partitionMode: "RANDOM", queryMode: "NAIVE" },
       { partitionMode: "RANDOM", queryMode: "OPTIMIZED" },
@@ -16,6 +21,8 @@ export class BenchmarkService {
       { partitionMode: "METIS", queryMode: "OPTIMIZED" }
     ] as const;
     const results = [];
+
+    // Chạy tuần tự từng case để benchmark table dễ đọc và log không bị lẫn.
     for (const materialName of materials) {
       for (const combo of combos) {
         const response = await this.queryService.run({ materialName, ...combo });
@@ -35,6 +42,7 @@ export class BenchmarkService {
   }
 
   async list() {
+    // Đọc query_execution_logs mới nhất để frontend có dữ liệu ngay cả sau khi refresh page.
     const result = await pool.query(`
       SELECT query_id, partition_mode, query_mode, material_name, visited_shards,
              pruned_shards, affected_factory_count, execution_time_ms, created_at

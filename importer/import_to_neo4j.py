@@ -22,7 +22,15 @@ CONNECT_RETRIES = 30
 CONNECT_DELAY_SECONDS = 2
 
 
+"""Import graph fragments into five Neo4j shards.
+
+Importer đọc partition maps và tạo graph local trong từng shard.
+Mỗi factory-subgraph phải nằm trong một shard để Cypher traversal không bị đứt.
+RawMaterial nodes có thể được replicate ở nhiều shards theo materialReplicaMap.
+"""
+
 def label_for(node: dict) -> str:
+    """Validate label để tránh build Cypher với label không mong muốn."""
     label = node["label"]
     if label not in LABELS:
         raise ValueError(f"Unsupported label: {label}")
@@ -30,10 +38,16 @@ def label_for(node: dict) -> str:
 
 
 def uid(mode: str, node_id: str) -> str:
+    """Tạo unique id theo partition mode để RANDOM và METIS graph cùng tồn tại."""
     return f"{mode}:{node_id}"
 
 
 def validate_subgraphs(edges: list[dict], partition: dict) -> None:
+    """Kiểm tra factory-subgraph không bị split sai shard.
+
+    Nếu Product/Part/Component của một factory nằm khác shard, Cypher local traversal
+    có thể trả thiếu factory. RawMaterial là ngoại lệ vì được replicate theo shard.
+    """
     factory_map = partition["factoryPartitionMap"]
     node_map = partition["nodePartitionMap"]
     material_map = partition["materialReplicaMap"]
@@ -49,6 +63,7 @@ def validate_subgraphs(edges: list[dict], partition: dict) -> None:
 
 
 def run_cypher_file(session, filename: str) -> None:
+    """Chạy file Cypher dùng để clear graph hoặc tạo indexes."""
     path = os.path.join(os.path.dirname(__file__), filename)
     for statement in open(path, encoding="utf-8").read().split(";"):
         statement = statement.strip()
@@ -57,11 +72,13 @@ def run_cypher_file(session, filename: str) -> None:
 
 
 def chunks(items: list[dict], size: int = BATCH_SIZE) -> Iterable[list[dict]]:
+    """Chia dữ liệu thành batches để import Neo4j ổn định hơn."""
     for index in range(0, len(items), size):
         yield items[index:index + size]
 
 
 def selected_modes() -> list[str]:
+    """Đọc PARTITION_MODE để biết import RANDOM, METIS hay cả hai."""
     mode = os.getenv("PARTITION_MODE", "ALL").upper()
     if mode == "ALL":
         return ["RANDOM", "METIS"]
@@ -71,14 +88,17 @@ def selected_modes() -> list[str]:
 
 
 def partition_file(mode: str) -> str:
+    """Map partition mode sang đúng file partition map."""
     return "random_partition_map.json" if mode == "RANDOM" else "metis_partition_map.json"
 
 
 def build_import_plan(mode: str, nodes_by_id: dict[str, dict], edges: list[dict], partition: dict) -> tuple[dict, dict]:
+    """Chuẩn bị danh sách nodes/relationships cần import cho từng shard."""
     validate_subgraphs(edges, partition)
     shard_nodes = defaultdict(lambda: defaultdict(dict))
     shard_edges = defaultdict(lambda: defaultdict(list))
 
+    # Non-material nodes được assign cố định theo nodePartitionMap.
     for node_id, shard_id in partition["nodePartitionMap"].items():
         node = nodes_by_id[node_id]
         props = dict(node["properties"])
@@ -87,6 +107,7 @@ def build_import_plan(mode: str, nodes_by_id: dict[str, dict], edges: list[dict]
         props["shardId"] = shard_id
         shard_nodes[shard_id][label_for(node)][props["uid"]] = {"uid": props["uid"], "props": props}
 
+    # RawMaterial nodes được replicate vào mọi shard có factory dùng material đó.
     for material_id, shards in partition["materialReplicaMap"].items():
         node = nodes_by_id[material_id]
         for shard_id in shards:
@@ -96,6 +117,7 @@ def build_import_plan(mode: str, nodes_by_id: dict[str, dict], edges: list[dict]
             props["shardId"] = shard_id
             shard_nodes[shard_id]["RawMaterial"][props["uid"]] = {"uid": props["uid"], "props": props}
 
+    # Relationship được import vào shard của factory-subgraph tương ứng.
     for edge in edges:
         rel_type = edge["type"]
         if rel_type not in REL_TYPES:
@@ -110,6 +132,7 @@ def build_import_plan(mode: str, nodes_by_id: dict[str, dict], edges: list[dict]
 
 
 def merge_plans(plans: list[tuple[dict, dict]]) -> tuple[dict, dict]:
+    """Gộp RANDOM và METIS import plans khi PARTITION_MODE=ALL."""
     merged_nodes = defaultdict(lambda: defaultdict(dict))
     merged_edges = defaultdict(lambda: defaultdict(list))
     for shard_nodes, shard_edges in plans:
@@ -123,6 +146,7 @@ def merge_plans(plans: list[tuple[dict, dict]]) -> tuple[dict, dict]:
 
 
 def import_nodes(session, label: str, rows: list[dict]) -> None:
+    """Import nodes theo label bằng MERGE để idempotent theo uid."""
     for batch in chunks(rows):
         session.run(
             f"""
@@ -135,6 +159,7 @@ def import_nodes(session, label: str, rows: list[dict]) -> None:
 
 
 def import_relationships(session, rel_type: str, rows: list[dict]) -> None:
+    """Import relationships sau khi nodes đã tồn tại trong shard."""
     source_label, target_label = REL_SCHEMA[rel_type]
     for batch in chunks(rows):
         session.run(
@@ -149,6 +174,7 @@ def import_relationships(session, rel_type: str, rows: list[dict]) -> None:
 
 
 def connect_driver(uri: str, user: str, password: str):
+    """Retry kết nối vì Neo4j container có thể cần thời gian để ready."""
     last_error = None
     for attempt in range(1, CONNECT_RETRIES + 1):
         driver = GraphDatabase.driver(uri, auth=(user, password))
@@ -164,6 +190,7 @@ def connect_driver(uri: str, user: str, password: str):
 
 
 def main() -> None:
+    """Build import plans rồi ghi graph data vào từng Neo4j shard."""
     modes = selected_modes()
     print(f"Preparing Neo4j import for modes: {', '.join(modes)}", flush=True)
     nodes = load_json(GENERATOR_DIR / "nodes.json")
@@ -171,6 +198,7 @@ def main() -> None:
     nodes_by_id = {node["id"]: node for node in nodes}
 
     plans = []
+    # Tạo plan riêng cho mỗi partition mode để import cùng lúc RANDOM/METIS nếu cần.
     for mode in modes:
         partition = load_json(PARTITIONER_DIR / partition_file(mode))
         plans.append(build_import_plan(mode, nodes_by_id, edges, partition))
@@ -180,6 +208,7 @@ def main() -> None:
     password = os.getenv("NEO4J_PASSWORD", "password123")
     summary = {}
     for shard_id, uri in shard_uris().items():
+        # Mỗi shard được clear, tạo indexes, import nodes rồi import relationships.
         print(f"{shard_id}: connecting to {uri}", flush=True)
         driver = connect_driver(uri, user, password)
         with driver.session() as session:

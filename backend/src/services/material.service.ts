@@ -3,6 +3,7 @@ import { PartitionMode } from "../types/query";
 
 export class MaterialService {
   async listMaterials() {
+    // Gom Material Directory theo material để frontend có dropdown nguyên liệu thật từ database.
     const result = await pool.query(`
       SELECT material_id, material_name, partition_mode, jsonb_agg(shard_id ORDER BY shard_id) AS shards
       FROM (
@@ -20,6 +21,7 @@ export class MaterialService {
       metisShards: string[];
     }>();
 
+    // Tách shards theo RANDOM/METIS để frontend có thể so sánh replica count.
     for (const row of result.rows) {
       const current = byMaterial.get(row.material_id) ?? {
         materialId: row.material_id,
@@ -46,6 +48,7 @@ export class MaterialService {
   }
 
   async directory(partitionMode: PartitionMode) {
+    // Trả bảng material_directory dạng chi tiết: mỗi row là một material xuất hiện trong một shard.
     const result = await pool.query(
       `SELECT material_id, material_name, partition_mode, shard_id, factory_count, component_count
        FROM material_directory

@@ -4,13 +4,22 @@ from collections import defaultdict
 from graph_utils import OUTPUT_DIR, SHARDS, factory_material_edges, load_graph, load_json, write_json
 
 
+"""Compute topology metrics for RANDOM and METIS partitions.
+
+Metrics này dùng để giải thích chất lượng partition trước khi chạy query:
+Edge-Cut, material replication, expected visited shards và cluster density.
+"""
+
 def metrics_for(mode: str, partition: dict, projection_edges: list[tuple[str, str]]) -> dict:
+    """Tính topology metrics trên factory-material projection graph."""
     material_replicas = partition["materialReplicaMap"]
     factory_map = partition["factoryPartitionMap"]
     cross = 0
     edge_count_by_shard = defaultdict(int)
     factory_count_by_shard = defaultdict(set)
     material_count_by_shard = defaultdict(set)
+
+    # Mỗi projection edge nối Factory với RawMaterial mà factory đó sử dụng.
     for factory_id, material_id in projection_edges:
         factory_shard = factory_map[factory_id]
         material_shards = material_replicas.get(material_id, [])
@@ -22,6 +31,8 @@ def metrics_for(mode: str, partition: dict, projection_edges: list[tuple[str, st
 
     material_replication = sum(len(value) for value in material_replicas.values()) / max(len(material_replicas), 1)
     node_count_by_shard = {shard: 0 for shard in SHARDS}
+
+    # Node count gồm non-material nodes được assign cố định và RawMaterial replicas.
     for shard in partition["nodePartitionMap"].values():
         node_count_by_shard[shard] += 1
     for shards in material_replicas.values():
@@ -30,6 +41,7 @@ def metrics_for(mode: str, partition: dict, projection_edges: list[tuple[str, st
 
     cluster_density_by_shard = {}
     for shard in SHARDS:
+        # Density = số factory-material edges thực tế / số edges tối đa có thể có trong shard.
         possible_edges = len(factory_count_by_shard[shard]) * len(material_count_by_shard[shard])
         cluster_density_by_shard[shard] = round(edge_count_by_shard[shard] / max(possible_edges, 1), 4)
 
@@ -51,6 +63,7 @@ def metrics_for(mode: str, partition: dict, projection_edges: list[tuple[str, st
 
 
 def main() -> None:
+    """Tính metrics cho RANDOM/METIS và ghi ra partitioner/output."""
     nodes, edges, _ = load_graph()
     projection_edges = factory_material_edges(nodes, edges)
     random_partition = load_json(OUTPUT_DIR / "random_partition_map.json")

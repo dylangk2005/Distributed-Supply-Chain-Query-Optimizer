@@ -4,6 +4,7 @@ import { FactoryEnrichmentService } from "../services/factory-enrichment.service
 export const factoryRoute = Router();
 const service = new FactoryEnrichmentService();
 
+// GET /api/factories/:factoryId: xem chi tiết một factory kèm original Supply_Chain_JSON.
 factoryRoute.get("/:factoryId", async (req, res, next) => {
   try {
     const detail = await service.detail(req.params.factoryId);
@@ -24,4 +25,3 @@ factoryRoute.get("/:factoryId", async (req, res, next) => {
     next(error);
   }
 });
-
